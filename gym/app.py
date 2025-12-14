@@ -49,11 +49,11 @@ def dashboard():
     members = members_sheet.get_all_records()
     attendance = attendance_sheet.get_all_records()
 
-    today = date.today().isoformat()
-
     attendance_map = {}
     for a in attendance:
-        attendance_map[a["date"]] = attendance_map.get(a["date"], 0) + 1
+        date_key = a.get("date", "")
+        if date_key:
+            attendance_map[date_key] = attendance_map.get(date_key, 0) + 1
 
     chart_dates = sorted(attendance_map.keys())[-7:]
     chart_counts = [attendance_map[d] for d in chart_dates]
@@ -85,44 +85,63 @@ def add_member():
             request.form["end_date"]
         ])
 
-        return redirect(url_for("generate_qr", member_id=member_id))
+        return redirect(url_for("qr_code", member_id=member_id))
 
     return render_template("add_member.html")
 
-@app.route("/generate_qr/<member_id>")
-def generate_qr(member_id):
-    qr_url = url_for("checkin", member_id=member_id, _external=True)
-
-    img = qrcode.make(qr_url)
-    path = os.path.join(QR_FOLDER, f"{member_id}.png")
-    img.save(path)
-
+@app.route("/qr/<member_id>")
+def qr_code(member_id):
+    """Generate and display QR code for a member"""
+    # Generate QR code URL for check-in
+    checkin_url = url_for("checkin", member_id=member_id, _external=True)
+    
+    # Create QR code
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(checkin_url)
+    qr.make(fit=True)
+    
+    # Save QR code image
+    img = qr.make_image(fill_color="black", back_color="white")
+    qr_filename = f"{member_id}.png"
+    qr_path = os.path.join(QR_FOLDER, qr_filename)
+    img.save(qr_path)
+    
     return render_template(
         "qr.html",
         member_id=member_id,
-        qr_file=f"qr/{member_id}.png"
+        qr_file=f"qr/{qr_filename}"
     )
 
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
+    """Handle member check-in/check-out via QR code scan"""
     today = date.today().isoformat()
     now_time = datetime.now().strftime("%H:%M:%S")
 
     records = attendance_sheet.get_all_records()
 
+    # Check if member already checked in today
     for i, row in enumerate(records, start=2):
-        if row["member_id"] == member_id and row["date"] == today:
-            if row["exit_time"] == "":
+        if row.get("member_id") == member_id and row.get("date") == today:
+            # If exit_time is empty, mark exit
+            if not row.get("exit_time") or row.get("exit_time") == "":
                 attendance_sheet.update_cell(i, 4, now_time)
                 return render_template("checkin_success.html", 
                                       message="Exit Marked", 
                                       emoji="🚪",
                                       member_id=member_id)
+            # Already checked in and out
             return render_template("checkin_success.html", 
                                   message="Already Checked In Today", 
                                   emoji="✅",
                                   member_id=member_id)
 
+    # New check-in for today
     attendance_sheet.append_row([member_id, today, now_time, ""])
     return render_template("checkin_success.html", 
                           message="Entry Marked", 
@@ -132,4 +151,6 @@ def checkin(member_id):
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"\n🏋️ Gym Management System starting on http://localhost:{port}")
+    print(f"📱 QR codes will be saved to: {QR_FOLDER}\n")
     app.run(host="0.0.0.0", port=port, debug=True)
