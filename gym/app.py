@@ -1,12 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for
-import os, json
+import os
+import json
 from datetime import date, datetime
 import qrcode
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+# ---------------- APP SETUP ----------------
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret")
+app.secret_key = os.environ.get("FLASK_SECRET", "change-me")
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -44,19 +46,8 @@ def dashboard():
     members = members_sheet.get_all_records()
     attendance = attendance_sheet.get_all_records()
 
-    today = date.today()
-    revenue = 0
-    active = expired = 0
+    today = date.today().isoformat()
 
-    for m in members:
-        end = datetime.strptime(m["end_date"], "%Y-%m-%d").date()
-        revenue += int(m["fees"])
-        if end >= today:
-            active += 1
-        else:
-            expired += 1
-
-    # Attendance last 7 days
     attendance_map = {}
     for a in attendance:
         attendance_map[a["date"]] = attendance_map.get(a["date"], 0) + 1
@@ -67,9 +58,6 @@ def dashboard():
     return render_template(
         "dashboard.html",
         members=members,
-        revenue=revenue,
-        active=active,
-        expired=expired,
         chart_dates=chart_dates,
         chart_counts=chart_counts
     )
@@ -89,15 +77,17 @@ def add_member():
             request.form["end_date"]
         ])
 
-        return redirect(url_for("generate_qr", member_id=member_id))
+        return redirect(url_for("dashboard"))
 
     return render_template("add_member.html")
 
 @app.route("/generate_qr/<member_id>")
 def generate_qr(member_id):
     qr_url = url_for("checkin", member_id=member_id, _external=True)
+
     img = qrcode.make(qr_url)
-    img.save(os.path.join(QR_FOLDER, f"{member_id}.png"))
+    path = os.path.join(QR_FOLDER, f"{member_id}.png")
+    img.save(path)
 
     return render_template(
         "qr.html",
@@ -108,19 +98,21 @@ def generate_qr(member_id):
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
     today = date.today().isoformat()
-    now = datetime.now().strftime("%H:%M:%S")
+    now_time = datetime.now().strftime("%H:%M:%S")
 
     records = attendance_sheet.get_all_records()
 
-    for i, r in enumerate(records, start=2):
-        if r["member_id"] == member_id and r["date"] == today:
-            if not r["exit_time"]:
-                attendance_sheet.update_cell(i, 4, now)
+    for i, row in enumerate(records, start=2):
+        if row["member_id"] == member_id and row["date"] == today:
+            if row["exit_time"] == "":
+                attendance_sheet.update_cell(i, 4, now_time)
                 return "<h2>🚪 Exit marked</h2>"
-            return "<h2>✅ Already completed today</h2>"
+            return "<h2>✅ Attendance already done</h2>"
 
-    attendance_sheet.append_row([member_id, today, now, ""])
+    attendance_sheet.append_row([member_id, today, now_time, ""])
     return "<h2>🏋️ Entry marked</h2>"
 
+# ---------------- RUN ----------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
