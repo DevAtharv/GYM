@@ -173,12 +173,10 @@
             {% else %}
               <td><span class="status expired">Expired</span></td>
             {% endif %}
-
             <td>
-              <a href="{{ url_for('generate_qr', member_id=m.member_id) }}" target="_blank">
+                <a href="{{ url_for('generate_qr', member_id=m.member_id) }}" target="_blank">
                   View QR
-              </a>
-
+                    </a>
             </td>
           </tr>
         {% endfor %}
@@ -217,4 +215,5 @@ new Chart(document.getElementById("attendanceChart"), {
 
 </body>
 </html>
+
 
