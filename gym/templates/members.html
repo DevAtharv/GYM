@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>All Members</title>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f2f4f8;
+            margin: 0;
+            padding: 30px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        .actions {
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            color: white;
+        }
+
+        .btn-back { background: #6c757d; }
+        .btn-logout { background: #dc3545; }
+
+        .table-container {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            font-size: 13px;
+            color: #777;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 12px 8px;
+            border-top: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .badge {
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .active {
+            background: #eafaf1;
+            color: #27ae60;
+        }
+
+        .expired {
+            background: #fdecea;
+            color: #c0392b;
+        }
+
+        .qr-btn {
+            background: #667eea;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>All Members</h1>
+
+<div class="actions">
+    <a href="/dashboard" class="btn btn-back">Back to Dashboard</a>
+    <a href="/logout" class="btn btn-logout">Logout</a>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Plan</th>
+                <th>Fees</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Status</th>
+                <th>QR</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for m in members %}
+            <tr>
+                <td>{{ m.member_id }}</td>
+                <td>{{ m.name }}</td>
+                <td>{{ m.phone }}</td>
+                <td>{{ m.plan }}</td>
+                <td>{{ m.fees }}</td>
+                <td>{{ m.start_date }}</td>
+                <td>{{ m.end_date }}</td>
+
+                {% if m.end_date >= now().strftime("%Y-%m-%d") %}
+                    <td><span class="badge active">Active</span></td>
+                {% else %}
+                    <td><span class="badge expired">Expired</span></td>
+                {% endif %}
+
+                <td>
+                    <a class="qr-btn"
+                       href="{{ url_for('generate_qr', member_id=m.member_id) }}"
+                       target="_blank">
+                       QR
+                    </a>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+<h2>QR Generated for {{ member_id }}</h2>
+
+<img src="{{ url_for('static', filename=qr_file) }}" width="250">
+
+<p>Scan this QR to mark attendance</p>
+<a href="/dashboard">Back to Dashboard</a>
