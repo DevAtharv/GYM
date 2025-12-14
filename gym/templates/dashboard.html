@@ -175,11 +175,10 @@
             {% endif %}
 
             <td>
-              <a class="qr-btn"
-                 href="{{ url_for('generate_qr', member_id=m.member_id) }}"
-                 target="_blank">
-                View QR
+              <a href="{{ url_for('generate_qr', member_id=m.member_id) }}" target="_blank">
+                  View QR
               </a>
+
             </td>
           </tr>
         {% endfor %}
@@ -218,3 +217,4 @@ new Chart(document.getElementById("attendanceChart"), {
 
 </body>
 </html>
+
