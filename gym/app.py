@@ -70,11 +70,6 @@ def members():
     members_list = members_sheet.get_all_records()
     return render_template("members.html", members=members_list)
 
-@app.route("/members")
-def members():
-    members_list = members_sheet.get_all_records()
-    return render_template("members.html", members=members_list)
-
 @app.route("/add", methods=["GET", "POST"])
 def add_member():
     if request.method == "POST":
