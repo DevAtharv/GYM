@@ -1,249 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Gym Dashboard</title>
+<meta charset="UTF-8">
+<title>Members Overview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Google Font -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #f5f7fb;
-      color: #111827;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: auto;
-      padding: 32px;
-    }
-
-    h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .sub {
-      color: #6b7280;
-      margin-bottom: 24px;
-    }
-
-    /* ===== BUTTON ===== */
-    .btn {
-      display: inline-block;
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: #fff;
-      padding: 10px 18px;
-      border-radius: 12px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-      box-shadow: 0 8px 20px rgba(102,126,234,0.35);
-    }
-
-    .btn:hover {
-      opacity: 0.9;
-    }
-
-    /* ===== CARD ===== */
-    .card {
-      background: #ffffff;
-      border-radius: 18px;
-      padding: 24px;
-      margin-top: 24px;
-      box-shadow:
-        0 1px 2px rgba(0,0,0,0.05),
-        0 12px 28px rgba(0,0,0,0.08);
-    }
-
-    .card h2 {
-      font-size: 18px;
-      margin-bottom: 16px;
-      font-weight: 600;
-    }
-
-    /* ===== TABLE ===== */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th {
-      text-align: left;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #6b7280;
-      padding-bottom: 12px;
-    }
-
-    td {
-      padding: 14px 8px;
-      border-top: 1px solid #eef0f4;
-      font-size: 14px;
-    }
-
-    tr:hover {
-      background: #f9fafb;
-    }
-
-    .badge {
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-      display: inline-block;
-    }
-
-    .active {
-      background: #eafaf1;
-      color: #059669;
-    }
-
-    .expired {
-      background: #fdecea;
-      color: #dc2626;
-    }
-
-    .qr-btn {
-      background: #eef2ff;
-      color: #4338ca;
-      padding: 8px 12px;
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 13px;
-      text-decoration: none;
-    }
-
-    .qr-btn:hover {
-      background: #e0e7ff;
-    }
-
-    /* ===== CHART ===== */
-    .chart-box {
-      height: 300px;
-    }
-
-    footer {
-      text-align: center;
-      margin-top: 40px;
-      font-size: 13px;
-      color: #9ca3af;
-    }
-  </style>
+<style>
+body {
+    margin: 0;
+    font-family: Inter, sans-serif;
+    background: #f5f7fb;
+}
+.wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+.sidebar {
+    width: 220px;
+    background: linear-gradient(180deg,#2563eb,#1e3a8a);
+    color: white;
+    padding: 24px;
+}
+.sidebar h2 {
+    margin-bottom: 30px;
+}
+.main {
+    flex: 1;
+    padding: 32px;
+}
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.header h1 {
+    margin: 0;
+}
+.add-btn {
+    background: #2563eb;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 10px;
+    text-decoration: none;
+}
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 24px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.05);
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+th {
+    text-align: left;
+    font-size: 12px;
+    color: #6b7280;
+}
+td {
+    padding: 14px 0;
+    border-top: 1px solid #eee;
+}
+.badge {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.active {
+    background: #e7f8ef;
+    color: #16a34a;
+}
+.expired {
+    background: #fdecec;
+    color: #dc2626;
+}
+.qr {
+    background: #2563eb;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 8px;
+    text-decoration: none;
+}
+</style>
 </head>
 
 <body>
+<div class="wrapper">
 
-  <div class="container">
+<aside class="sidebar">
+    <h2>🏋 Gym Admin</h2>
+    <div>Dashboard</div>
+    <div>Members</div>
+    <div>Attendance</div>
+</aside>
 
-    <h1>🏋️ Gym Dashboard</h1>
-    <p class="sub">Manage members, QR attendance & insights</p>
+<main class="main">
 
-    <a href="/add" class="btn">+ Add Member</a>
+<div class="header">
+    <h1>Members Overview</h1>
+    <a class="add-btn" href="/add">Add Member</a>
+</div>
 
-    <!-- MEMBERS -->
-    <div class="card">
-      <h2>Members</h2>
+<div class="card">
+<table>
+<thead>
+<tr>
+    <th>ID</th>
+    <th>Name</th>
+    <th>Phone</th>
+    <th>End Date</th>
+    <th>Status</th>
+    <th>QR</th>
+</tr>
+</thead>
+<tbody>
 
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>End Date</th>
-            <th>Status</th>
-            <th>QR</th>
-          </tr>
-        </thead>
+{% for m in members %}
+<tr>
+    <td>{{ m.member_id }}</td>
+    <td>{{ m.name }}</td>
+    <td>{{ m.phone }}</td>
+    <td>{{ m.end_date }}</td>
 
-        <tbody>
-        {% for m in members %}
-          <tr>
-            <td>{{ m.member_id }}</td>
-            <td>{{ m.name }}</td>
-            <td>{{ m.phone }}</td>
-            <td>{{ m.end_date }}</td>
+    {% if m.end_date >= now().strftime("%Y-%m-%d") %}
+        <td><span class="badge active">Active</span></td>
+    {% else %}
+        <td><span class="badge expired">Expired</span></td>
+    {% endif %}
 
-            {% if m.end_date >= now().strftime("%Y-%m-%d") %}
-              <td><span class="badge active">Active</span></td>
-            {% else %}
-              <td><span class="badge expired">Expired</span></td>
-            {% endif %}
+    <td>
+        <a class="qr" href="{{ url_for('generate_qr', member_id=m.member_id) }}" target="_blank">
+            View QR
+        </a>
+    </td>
+</tr>
+{% endfor %}
 
-            <td>
-              <a
-                class="qr-btn"
-                href="{{ url_for('generate_qr', member_id=m.member_id) }}"
-                target="_blank"
-              >
-                View QR
-              </a>
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
+</tbody>
+</table>
+</div>
 
-    <!-- ATTENDANCE -->
-    <div class="card">
-      <h2>Attendance (Last 7 Days)</h2>
+<div class="card">
+<h3>Attendance (Last 7 Days)</h3>
+<canvas id="chart"></canvas>
+</div>
 
-      <div class="chart-box">
-        <canvas id="attendanceChart"></canvas>
-      </div>
-    </div>
+</main>
+</div>
 
-    <footer>
-      Gym Management System • Built by You
-    </footer>
-
-  </div>
-
-  <!-- CHART SCRIPT -->
-  <script>
-    const ctx = document.getElementById("attendanceChart");
-
-    new Chart(ctx, {
-      type: "line",
-      data: {
+<script>
+new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
         labels: {{ chart_dates | safe }},
         datasets: [{
-          data: {{ chart_counts | safe }},
-          borderColor: "#667eea",
-          backgroundColor: "rgba(102,126,234,0.15)",
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4
+            data: {{ chart_counts | safe }},
+            borderColor: "#2563eb",
+            fill: true,
+            backgroundColor: "rgba(37,99,235,.15)",
+            tension: .4
         }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true
-          }
-        }
-      }
-    });
-  </script>
-
+    },
+    options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+</script>
 </body>
 </html>
