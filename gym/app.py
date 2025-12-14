@@ -34,12 +34,15 @@ os.makedirs(QR_FOLDER, exist_ok=True)
 
 @app.context_processor
 def inject_now():
-    return {"now": datetime.now}
+    return {
+        "now": datetime.now,
+        "today": date.today().isoformat()
+    }
 
 # ---------------- ROUTES ----------------
 @app.route("/")
 def home():
-    return redirect("/dashboard")
+    return render_template("home.html")
 
 @app.route("/dashboard")
 def dashboard():
@@ -62,6 +65,16 @@ def dashboard():
         chart_counts=chart_counts
     )
 
+@app.route("/members")
+def members():
+    members_list = members_sheet.get_all_records()
+    return render_template("members.html", members=members_list)
+
+@app.route("/members")
+def members():
+    members_list = members_sheet.get_all_records()
+    return render_template("members.html", members=members_list)
+
 @app.route("/add", methods=["GET", "POST"])
 def add_member():
     if request.method == "POST":
@@ -77,7 +90,7 @@ def add_member():
             request.form["end_date"]
         ])
 
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("generate_qr", member_id=member_id))
 
     return render_template("add_member.html")
 
@@ -94,6 +107,7 @@ def generate_qr(member_id):
         member_id=member_id,
         qr_file=f"qr/{member_id}.png"
     )
+
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
     today = date.today().isoformat()
@@ -105,14 +119,22 @@ def checkin(member_id):
         if row["member_id"] == member_id and row["date"] == today:
             if row["exit_time"] == "":
                 attendance_sheet.update_cell(i, 4, now_time)
-                return "<h2>🚪 Exit marked</h2>"
-            return "<h2>✅ Attendance already done</h2>"
+                return render_template("checkin_success.html", 
+                                      message="Exit Marked", 
+                                      emoji="🚪",
+                                      member_id=member_id)
+            return render_template("checkin_success.html", 
+                                  message="Already Checked In Today", 
+                                  emoji="✅",
+                                  member_id=member_id)
 
     attendance_sheet.append_row([member_id, today, now_time, ""])
-    return "<h2>🏋️ Entry marked</h2>"
+    return render_template("checkin_success.html", 
+                          message="Entry Marked", 
+                          emoji="🏋️",
+                          member_id=member_id)
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
+    app.run(host="0.0.0.0", port=port, debug=True)
