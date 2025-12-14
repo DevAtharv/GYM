@@ -1,285 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Gym Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Chart.js -->
+  <title>Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <style>
-    :root {
-      --bg: #f5f7fb;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --primary: #4f46e5;
-      --border: #e5e7eb;
-      --success: #16a34a;
-      --danger: #dc2626;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    /* ---------- HEADER ---------- */
-    header {
-      background: var(--card);
-      border-bottom: 1px solid var(--border);
-      padding: 18px 32px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    header h1 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 600;
-    }
-
-    header a {
-      background: var(--primary);
-      color: white;
-      text-decoration: none;
-      padding: 10px 16px;
-      border-radius: 10px;
-      font-size: 14px;
-    }
-
-    /* ---------- LAYOUT ---------- */
-    .container {
-      padding: 32px;
-      max-width: 1200px;
-      margin: auto;
-    }
-
-    /* ---------- STATS ---------- */
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 20px;
-      margin-bottom: 28px;
-    }
-
-    .stat-card {
-      background: var(--card);
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    }
-
-    .stat-card p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .stat-card h2 {
-      margin: 8px 0 0;
-      font-size: 30px;
-      font-weight: 600;
-    }
-
-    /* ---------- CHART ---------- */
-    .chart-card {
-      background: var(--card);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-      margin-bottom: 28px;
-    }
-
-    /* ---------- TABLE ---------- */
-    .table-card {
-      background: var(--card);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    }
-
-    .table-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-
-    .table-header input {
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      width: 260px;
-      font-size: 14px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    th {
-      text-align: left;
-      color: var(--muted);
-      font-weight: 500;
-      padding-bottom: 10px;
-    }
-
-    td {
-      padding: 14px 6px;
-      border-top: 1px solid var(--border);
-    }
-
-    .badge {
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .active {
-      background: #ecfdf5;
-      color: var(--success);
-    }
-
-    .expired {
-      background: #fef2f2;
-      color: var(--danger);
-    }
-
-    .qr {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    footer {
-      text-align: center;
-      padding: 30px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-  </style>
 </head>
-
 <body>
 
-<header>
-  <h1>Gym Dashboard</h1>
-  <a href="/add">+ Add Member</a>
-</header>
+<h2>Gym Dashboard</h2>
+<a href="/add">Add Member</a>
 
-<div class="container">
+<table border="1" cellpadding="10">
+<tr>
+  <th>ID</th><th>Name</th><th>Phone</th><th>End</th><th>Status</th><th>QR</th>
+</tr>
 
-  <!-- STATS -->
-  <div class="stats">
-    <div class="stat-card">
-      <p>Total Members</p>
-      <h2>{{ total_members }}</h2>
-    </div>
+{% for m in members %}
+<tr>
+  <td>{{ m.member_id }}</td>
+  <td>{{ m.name }}</td>
+  <td>{{ m.phone }}</td>
+  <td>{{ m.end_date }}</td>
 
-    <div class="stat-card">
-      <p>Active Members</p>
-      <h2>{{ active }}</h2>
-    </div>
+  {% if m.end_date >= now().strftime("%Y-%m-%d") %}
+    <td>Active</td>
+  {% else %}
+    <td>Expired</td>
+  {% endif %}
 
-    <div class="stat-card">
-      <p>Expired Members</p>
-      <h2>{{ expired }}</h2>
-    </div>
+  <td>
+    <a href="{{ url_for('generate_qr', member_id=m.member_id) }}" target="_blank">
+      View QR
+    </a>
+  </td>
+</tr>
+{% endfor %}
+</table>
 
-    <div class="stat-card">
-      <p>Total Revenue</p>
-      <h2>₹ {{ revenue }}</h2>
-    </div>
-  </div>
-
-  <!-- CHART -->
-  <div class="chart-card">
-    <h3 style="margin-top:0;font-weight:500;">Attendance (Last 7 Days)</h3>
-    <canvas id="attendanceChart" height="80"></canvas>
-  </div>
-
-  <!-- TABLE -->
-  <div class="table-card">
-    <div class="table-header">
-      <h3 style="margin:0;font-weight:500;">Members</h3>
-      <input id="search" placeholder="Search members…" />
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>Phone</th>
-          <th>End Date</th>
-          <th>Status</th>
-          <th>QR</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for m in members %}
-        <tr>
-          <td>{{ m.member_id }}</td>
-          <td>{{ m.name }}</td>
-          <td>{{ m.phone }}</td>
-          <td>{{ m.end_date }}</td>
-
-          {% if m.end_date >= now().strftime("%Y-%m-%d") %}
-            <td><span class="badge active">Active</span></td>
-          {% else %}
-            <td><span class="badge expired">Expired</span></td>
-          {% endif %}
-
-          <td><a class="qr" href="/generate_qr/{{ m.member_id }}" target="_blank">View</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-</div>
-
-<footer>
-  Gym Management System • Built by You
-</footer>
+<h3>Attendance (Last 7 Days)</h3>
+<canvas id="chart"></canvas>
 
 <script>
-new Chart(document.getElementById("attendanceChart"), {
+new Chart(document.getElementById("chart"), {
   type: "line",
   data: {
     labels: {{ chart_dates | safe }},
     datasets: [{
       data: {{ chart_counts | safe }},
-      borderColor: "#4f46e5",
-      backgroundColor: "rgba(79,70,229,0.1)",
-      tension: 0.4,
-      fill: true,
-      pointRadius: 4
+      borderColor: "blue",
+      fill: false
     }]
-  },
-  options: {
-    plugins: { legend: { display: false } },
-    scales: { y: { beginAtZero: true } }
   }
-});
-
-document.getElementById("search").addEventListener("keyup", function () {
-  const value = this.value.toLowerCase();
-  document.querySelectorAll("tbody tr").forEach(row => {
-    row.style.display = row.innerText.toLowerCase().includes(value) ? "" : "none";
-  });
 });
 </script>
 
