@@ -94,7 +94,6 @@ def generate_qr(member_id):
         member_id=member_id,
         qr_file=f"qr/{member_id}.png"
     )
-
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
     today = date.today().isoformat()
@@ -116,3 +115,4 @@ def checkin(member_id):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
