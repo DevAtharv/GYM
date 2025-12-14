@@ -5,9 +5,8 @@ import qrcode
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# ---------------- APP SETUP ----------------
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET", "change-me")
+app.secret_key = os.environ.get("FLASK_SECRET", "dev-secret")
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -15,8 +14,8 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+creds_json = json.loads(os.environ["GOOGLE_CREDS"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
 client = gspread.authorize(creds)
 
 db = client.open("GymDB")
@@ -26,7 +25,7 @@ attendance_sheet = db.worksheet("attendance")
 # ---------------- HELPERS ----------------
 def generate_member_id():
     rows = members_sheet.get_all_records()
-    return f"M{len(rows) + 1:03d}"
+    return f"M{len(rows)+1:03d}"
 
 QR_FOLDER = os.path.join(app.root_path, "static", "qr")
 os.makedirs(QR_FOLDER, exist_ok=True)
@@ -38,7 +37,7 @@ def inject_now():
 # ---------------- ROUTES ----------------
 @app.route("/")
 def home():
-    return render_template("home.html")
+    return redirect("/dashboard")
 
 @app.route("/dashboard")
 def dashboard():
@@ -46,19 +45,18 @@ def dashboard():
     attendance = attendance_sheet.get_all_records()
 
     today = date.today()
-    total_members = len(members)
-    active = expired = 0
     revenue = 0
+    active = expired = 0
 
     for m in members:
         end = datetime.strptime(m["end_date"], "%Y-%m-%d").date()
+        revenue += int(m["fees"])
         if end >= today:
             active += 1
         else:
             expired += 1
-        revenue += int(m["fees"])
 
-    # Attendance chart
+    # Attendance last 7 days
     attendance_map = {}
     for a in attendance:
         attendance_map[a["date"]] = attendance_map.get(a["date"], 0) + 1
@@ -69,10 +67,9 @@ def dashboard():
     return render_template(
         "dashboard.html",
         members=members,
-        total_members=total_members,
+        revenue=revenue,
         active=active,
         expired=expired,
-        revenue=revenue,
         chart_dates=chart_dates,
         chart_counts=chart_counts
     )
@@ -82,15 +79,14 @@ def add_member():
     if request.method == "POST":
         member_id = generate_member_id()
 
-        name = request.form["name"]
-        phone = request.form["phone"]
-        fees = request.form["fees"]
-        end_date = request.form["end_date"]
-
-        start_date = date.today().isoformat()
-
         members_sheet.append_row([
-            member_id, name, phone, "-", fees, start_date, end_date
+            member_id,
+            request.form["name"],
+            request.form["phone"],
+            "-",
+            request.form["fees"],
+            date.today().isoformat(),
+            request.form["end_date"]
         ])
 
         return redirect(url_for("generate_qr", member_id=member_id))
@@ -103,12 +99,12 @@ def generate_qr(member_id):
     img = qrcode.make(qr_url)
     img.save(os.path.join(QR_FOLDER, f"{member_id}.png"))
 
-    return render_template("qr.html",
+    return render_template(
+        "qr.html",
         member_id=member_id,
         qr_file=f"qr/{member_id}.png"
     )
 
-# -------- ENTRY + EXIT ATTENDANCE --------
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
     today = date.today().isoformat()
@@ -116,22 +112,15 @@ def checkin(member_id):
 
     records = attendance_sheet.get_all_records()
 
-    for idx, row in enumerate(records, start=2):
-        if row["member_id"] == member_id and row["date"] == today:
-            if row["exit_time"] in ("", None):
-                attendance_sheet.update_cell(idx, 4, now)
+    for i, r in enumerate(records, start=2):
+        if r["member_id"] == member_id and r["date"] == today:
+            if not r["exit_time"]:
+                attendance_sheet.update_cell(i, 4, now)
                 return "<h2>🚪 Exit marked</h2>"
-            return "<h2>✅ Attendance already completed</h2>"
+            return "<h2>✅ Already completed today</h2>"
 
     attendance_sheet.append_row([member_id, today, now, ""])
     return "<h2>🏋️ Entry marked</h2>"
 
-@app.route("/members")
-def members():
-    records = members_sheet.get_all_records()
-    return render_template("members.html", members=records)
-
-# ---------------- RUN ----------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
