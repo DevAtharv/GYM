@@ -62,6 +62,7 @@ if len(payments_sheet.get_all_values()) <= 1:
 # ---------------- HELPERS ----------------
 
 def get_today_sheet():
+    """Helper to get/create TODAY'S sheet specifically"""
     today_str = get_today_date()
     sheet_name = f"Attd_{today_str}"
     try:
@@ -124,23 +125,37 @@ def dashboard():
     members = members_sheet.get_all_records()
     payments = payments_sheet.get_all_records()
     
-    # 1. Attendance Data
-    today_sheet = get_today_sheet()
-    todays_records = today_sheet.get_all_records()
-    todays_records.reverse()
+    # --- 1. DATE SELECTION LOGIC ---
+    # Check if user requested a specific date
+    selected_date = request.args.get("date")
+    
+    if not selected_date:
+        selected_date = get_today_date() # Default to today
+        
+    # Try to fetch attendance for that date
+    attendance_records = []
+    sheet_name = f"Attd_{selected_date}"
+    
+    try:
+        # We try to open the sheet for the selected date
+        target_sheet = db.worksheet(sheet_name)
+        attendance_records = target_sheet.get_all_records()
+        attendance_records.reverse() # Show newest first
+    except gspread.WorksheetNotFound:
+        # If sheet doesn't exist, it means no one came that day (or future date)
+        attendance_records = []
 
-    # 2. Financial Analysis
+    # --- 2. Financial Analysis ---
     monthly_revenue = defaultdict(float)
     total_revenue = 0
     
     current_month_key = datetime.now(IST).strftime("%Y-%m")
     
-    # Calculate Last Month Key (e.g., if now is 2025-12, last is 2025-11)
+    # Calculate Last Month Key
     first_day_this_month = datetime.now(IST).replace(day=1)
     last_month_end = first_day_this_month - timedelta(days=1)
     last_month_key = last_month_end.strftime("%Y-%m")
     
-    # Breakdown: Join vs Renewal
     revenue_breakdown = {"Join": 0, "Renewal": 0}
 
     for p in payments:
@@ -154,7 +169,6 @@ def dashboard():
                 monthly_revenue[year_month] += amount
                 total_revenue += amount
                 
-                # If this payment is from THIS month, add to breakdown
                 if year_month == current_month_key:
                     if "Join" in txn_type:
                         revenue_breakdown["Join"] += amount
@@ -171,13 +185,12 @@ def dashboard():
     if last_month_revenue > 0:
         revenue_growth = ((current_month_revenue - last_month_revenue) / last_month_revenue) * 100
     elif current_month_revenue > 0:
-        revenue_growth = 100 # 100% growth if last month was 0
+        revenue_growth = 100 
 
-    # 3. Recent Transactions (Last 10)
+    # --- 3. Recent Transactions ---
     recent_txns = payments[-10:]
     recent_txns.reverse()
     
-    # Add Member Names to Transactions for display
     member_map = {m.get("member_id"): m.get("name") for m in members}
     for txn in recent_txns:
         txn['member_name'] = member_map.get(txn.get("member_id"), "Unknown Member")
@@ -185,7 +198,8 @@ def dashboard():
     return render_template(
         "dashboard.html",
         members=members,
-        recent_checkins=todays_records,
+        recent_checkins=attendance_records, # Now holds selected date's records
+        selected_date=selected_date,        # Pass selected date to template
         total_revenue=total_revenue,
         current_month_revenue=current_month_revenue,
         last_month_revenue=last_month_revenue,
