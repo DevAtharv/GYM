@@ -7,21 +7,19 @@ from collections import defaultdict
 import qrcode
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import pytz  # NEW: Timezone support
+import pytz
 
 # ---------------- APP SETUP ----------------
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "gym-secret-key-change-this-in-production")
 
-# ---------------- TIMEZONE SETUP (FIXES TIME ISSUE) ----------------
+# ---------------- TIMEZONE SETUP ----------------
 IST = pytz.timezone('Asia/Kolkata')
 
 def get_today_date():
-    """Returns today's date in IST"""
     return datetime.now(IST).date().isoformat()
 
 def get_current_time():
-    """Returns current time in IST (12-hour format)"""
     return datetime.now(IST).strftime("%I:%M %p")
 
 # ---------------- ADMIN CREDENTIALS ----------------
@@ -41,14 +39,12 @@ client = gspread.authorize(creds)
 db = client.open("GymDB")
 members_sheet = db.worksheet("members")
 
-# --- PAYMENTS SHEET SETUP ---
 try:
     payments_sheet = db.worksheet("payments")
 except gspread.WorksheetNotFound:
     payments_sheet = db.add_worksheet(title="payments", rows=1000, cols=6)
     payments_sheet.append_row(["transaction_id", "member_id", "amount", "date", "type", "notes"])
 
-# Automatic Migration
 if len(payments_sheet.get_all_values()) <= 1:
     print("Migrating existing member fees to payments ledger...")
     existing_members = members_sheet.get_all_records()
@@ -65,13 +61,8 @@ if len(payments_sheet.get_all_values()) <= 1:
 # ---------------- HELPERS ----------------
 
 def get_today_sheet():
-    """
-    Finds or creates a sheet specifically for TODAY'S date (in IST).
-    Format: 'Attd_YYYY-MM-DD'
-    """
     today_str = get_today_date()
     sheet_name = f"Attd_{today_str}"
-    
     try:
         return db.worksheet(sheet_name)
     except gspread.WorksheetNotFound:
@@ -101,7 +92,6 @@ def login_required(f):
 
 @app.context_processor
 def inject_now():
-    # Makes 'now' and 'today' available in all templates (using IST)
     return {
         "now": lambda: datetime.now(IST),
         "today": get_today_date()
@@ -133,12 +123,10 @@ def dashboard():
     members = members_sheet.get_all_records()
     payments = payments_sheet.get_all_records()
     
-    # Get Today's Live Attendance
     today_sheet = get_today_sheet()
     todays_records = today_sheet.get_all_records()
     todays_records.reverse()
 
-    # Revenue Stats
     monthly_revenue = defaultdict(float)
     total_revenue = 0
     for p in payments:
@@ -187,7 +175,8 @@ def add_member():
         ])
         
         flash(f'Member {member_id} added!', 'success')
-        return redirect(url_for("qr_code", member_id=member_id))
+        # Redirect to members list instead of individual QR since we don't use them anymore
+        return redirect(url_for("members")) 
     return render_template("add_member.html")
 
 @app.route("/renew/<member_id>", methods=["GET", "POST"])
@@ -215,25 +204,31 @@ def renew_membership(member_id):
     member = next((m for m in all_members if m.get("member_id") == member_id), None)
     return render_template("renew.html", member=member) if member else redirect(url_for('members'))
 
-@app.route("/qr/<member_id>")
+# --- NEW: MASTER QR ROUTE ---
+@app.route("/master-qr")
 @login_required
-def qr_code(member_id):
-    # Generate URL to the verification page
+def master_qr():
+    """Generates the single Master QR for the gym"""
     checkin_url = url_for("verify_checkin", _external=True)
+    
     qr = qrcode.QRCode(box_size=10, border=4)
     qr.add_data(checkin_url)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
     
-    filename = f"{member_id}.png"
+    filename = "MASTER_QR.png"
     img.save(os.path.join(QR_FOLDER, filename))
-    return render_template("qr.html", member_id=member_id, qr_file=f"qr/{filename}")
+    
+    return render_template("qr.html", member_id="GYM MASTER QR", qr_file=f"qr/{filename}")
+
+# Keeping individual route just in case, but it points to the same verify page
+@app.route("/qr/<member_id>")
+@login_required
+def qr_code(member_id):
+    return redirect(url_for('master_qr'))
 
 @app.route("/verify", methods=["GET", "POST"])
 def verify_checkin():
-    """
-    Member scans QR and lands here to enter their Member ID
-    """
     if request.method == "POST":
         entered_id = request.form.get("member_id", "").strip().upper()
         
@@ -241,68 +236,40 @@ def verify_checkin():
             flash("Please enter your Member ID", "error")
             return render_template("verify_checkin.html")
         
-        # Check if member exists
         members = members_sheet.get_all_records()
         member = None
-        
         for m in members:
             if str(m.get("member_id", "")).upper() == entered_id:
                 member = m
                 break
         
         if not member:
-            flash(f"Member ID '{entered_id}' not found. Please check and try again.", "error")
+            flash(f"Member ID '{entered_id}' not found.", "error")
             return render_template("verify_checkin.html")
         
-        # Check if membership is expired
         if member.get("end_date", "") < get_today_date():
-            flash(f"Membership expired on {member.get('end_date')}. Please renew to continue.", "error")
+            flash(f"Membership expired on {member.get('end_date')}.", "error")
             return render_template("verify_checkin.html")
         
-        # Member verified - process check-in
         return process_checkin(entered_id, member.get("name"))
     
-    # GET request - show verification form
     return render_template("verify_checkin.html")
 
 def process_checkin(member_id, member_name):
-    """
-    Process the actual check-in/check-out after verification
-    """
     today_sheet = get_today_sheet()
     today_str = get_today_date()
-    now_time = get_current_time()  # Updated to use IST
+    now_time = get_current_time()
     
-    # Check if they already checked in TODAY
     records = today_sheet.get_all_records()
-    
     for i, row in enumerate(records, start=2):
         if row.get("member_id") == member_id:
             if not row.get("out_time"):
-                # Mark exit
                 today_sheet.update_cell(i, 4, now_time)
-                return render_template("checkin_success.html", 
-                                     message="Exit Marked Successfully", 
-                                     emoji="🚪", 
-                                     member_id=member_id,
-                                     member_name=member_name,
-                                     time=now_time)
-            # Already checked in and out
-            return render_template("checkin_success.html", 
-                                 message="Already Checked In Today", 
-                                 emoji="✅", 
-                                 member_id=member_id,
-                                 member_name=member_name,
-                                 time=now_time)
+                return render_template("checkin_success.html", message="Exit Marked", emoji="🚪", member_id=member_id, member_name=member_name, time=now_time)
+            return render_template("checkin_success.html", message="Already Checked In", emoji="✅", member_id=member_id, member_name=member_name, time=now_time)
     
-    # New entry for today
     today_sheet.append_row([member_id, member_name, now_time, "", today_str])
-    return render_template("checkin_success.html", 
-                         message="Entry Marked Successfully", 
-                         emoji="🏋️", 
-                         member_id=member_id,
-                         member_name=member_name,
-                         time=now_time)
+    return render_template("checkin_success.html", message="Entry Marked", emoji="🏋️", member_id=member_id, member_name=member_name, time=now_time)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
