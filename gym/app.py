@@ -3,6 +3,7 @@ import os
 import json
 from datetime import date, datetime, timedelta
 from functools import wraps
+from collections import defaultdict
 import qrcode
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -91,6 +92,7 @@ def dashboard():
     members = members_sheet.get_all_records()
     attendance = attendance_sheet.get_all_records()
 
+    # Attendance map
     attendance_map = {}
     for a in attendance:
         date_key = a.get("date", "")
@@ -100,11 +102,50 @@ def dashboard():
     chart_dates = sorted(attendance_map.keys())[-7:]
     chart_counts = [attendance_map[d] for d in chart_dates]
 
+    # Revenue Analysis
+    monthly_revenue = defaultdict(float)
+    total_revenue = 0
+    
+    for member in members:
+        try:
+            fees = float(member.get("fees", 0))
+            start_date = member.get("start_date", "")
+            
+            if start_date and fees > 0:
+                # Extract year-month from start_date (format: YYYY-MM-DD)
+                year_month = start_date[:7]  # Gets YYYY-MM
+                monthly_revenue[year_month] += fees
+                total_revenue += fees
+        except (ValueError, TypeError):
+            continue
+    
+    # Sort by month and get last 6 months
+    sorted_months = sorted(monthly_revenue.keys())[-6:] if monthly_revenue else []
+    revenue_months = sorted_months
+    revenue_amounts = [monthly_revenue[month] for month in sorted_months]
+    
+    # Calculate this month's revenue
+    current_month = date.today().strftime("%Y-%m")
+    current_month_revenue = monthly_revenue.get(current_month, 0)
+    
+    # Calculate last month's revenue
+    try:
+        last_month_date = date.today().replace(day=1) - timedelta(days=1)
+        last_month = last_month_date.strftime("%Y-%m")
+        last_month_revenue = monthly_revenue.get(last_month, 0)
+    except:
+        last_month_revenue = 0
+
     return render_template(
         "dashboard.html",
         members=members,
         chart_dates=chart_dates,
-        chart_counts=chart_counts
+        chart_counts=chart_counts,
+        total_revenue=total_revenue,
+        current_month_revenue=current_month_revenue,
+        last_month_revenue=last_month_revenue,
+        revenue_months=revenue_months,
+        revenue_amounts=revenue_amounts
     )
 
 @app.route("/members")
