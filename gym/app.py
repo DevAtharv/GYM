@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import os
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from functools import wraps
 from collections import defaultdict
 import qrcode
@@ -28,7 +28,6 @@ client = gspread.authorize(creds)
 
 db = client.open("GymDB")
 members_sheet = db.worksheet("members")
-attendance_sheet = db.worksheet("attendance")
 
 # --- PAYMENTS SHEET SETUP ---
 try:
@@ -52,6 +51,25 @@ if len(payments_sheet.get_all_values()) <= 1:
             continue
 
 # ---------------- HELPERS ----------------
+
+def get_today_sheet():
+    """
+    Finds or creates a sheet specifically for TODAY'S date.
+    Format: 'Attd_YYYY-MM-DD'
+    """
+    today_str = date.today().isoformat()
+    sheet_name = f"Attd_{today_str}"
+    
+    try:
+        # Try to open today's sheet
+        return db.worksheet(sheet_name)
+    except gspread.WorksheetNotFound:
+        # If not found, create it with headers
+        # We put 'name' in the sheet too, so you can just print this sheet easily
+        new_sheet = db.add_worksheet(title=sheet_name, rows=500, cols=5)
+        new_sheet.append_row(["member_id", "name", "in_time", "out_time", "date"])
+        return new_sheet
+
 def generate_member_id():
     rows = members_sheet.get_all_values()
     count = len(rows) - 1 if len(rows) > 0 else 0
@@ -100,13 +118,19 @@ def logout():
 @login_required
 def dashboard():
     members = members_sheet.get_all_records()
-    attendance = attendance_sheet.get_all_records()
     payments = payments_sheet.get_all_records()
     
-    # 1. Calculate Simple Revenue Stats
+    # 1. Get Today's Live Attendance
+    # This automatically resets every day because it looks for a new sheet
+    today_sheet = get_today_sheet()
+    todays_records = today_sheet.get_all_records()
+    
+    # Reverse so the latest person is at the top
+    todays_records.reverse()
+
+    # 2. Simple Revenue Stats
     monthly_revenue = defaultdict(float)
     total_revenue = 0
-    
     for p in payments:
         try:
             amount = float(p.get("amount", 0))
@@ -121,23 +145,12 @@ def dashboard():
     current_month = date.today().strftime("%Y-%m")
     current_month_revenue = monthly_revenue.get(current_month, 0)
     
-    # 2. Prepare Recent Check-ins List (Simple & Readable)
-    # Map Member ID -> Name for easy display
-    member_map = {m.get("member_id"): m.get("name") for m in members}
-    
-    # Get last 15 attendance records and reverse them (newest first)
-    recent_checkins = attendance[-15:]
-    recent_checkins.reverse()
-    
-    # Attach names to the check-in records
-    for checkin in recent_checkins:
-        m_id = checkin.get("member_id")
-        checkin['member_name'] = member_map.get(m_id, "Unknown Member")
-
+    # We pass 'todays_records' as 'recent_checkins' to reuse your template logic
+    # But now it ONLY contains today's people.
     return render_template(
         "dashboard.html",
         members=members,
-        recent_checkins=recent_checkins,
+        recent_checkins=todays_records,
         total_revenue=total_revenue,
         current_month_revenue=current_month_revenue
     )
@@ -209,18 +222,33 @@ def qr_code(member_id):
 
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
-    today = date.today().isoformat()
-    now_time = datetime.now().strftime("%I:%M %p") # 12-hour format is easier to read
+    # 1. Get or Create TODAY'S sheet
+    today_sheet = get_today_sheet()
     
-    records = attendance_sheet.get_all_records()
+    today_str = date.today().isoformat()
+    now_time = datetime.now().strftime("%I:%M %p")
+    
+    # 2. Find Member Name (So we can save it in the daily sheet for easy printing)
+    members = members_sheet.get_all_records()
+    member_name = "Unknown"
+    for m in members:
+        if m.get("member_id") == member_id:
+            member_name = m.get("name")
+            break
+
+    # 3. Check if they already checked in TODAY
+    records = today_sheet.get_all_records()
+    
     for i, row in enumerate(records, start=2):
-        if row.get("member_id") == member_id and row.get("date") == today:
-            if not row.get("exit_time"):
-                attendance_sheet.update_cell(i, 4, now_time)
+        # We only check member_id in this specific daily sheet
+        if row.get("member_id") == member_id:
+            if not row.get("out_time"):
+                today_sheet.update_cell(i, 4, now_time) # Update Exit Time
                 return render_template("checkin_success.html", message="Exit Marked", emoji="🚪", member_id=member_id)
             return render_template("checkin_success.html", message="Already Checked In", emoji="✅", member_id=member_id)
             
-    attendance_sheet.append_row([member_id, today, now_time, ""])
+    # 4. New Entry for Today
+    today_sheet.append_row([member_id, member_name, now_time, "", today_str])
     return render_template("checkin_success.html", message="Entry Marked", emoji="🏋️", member_id=member_id)
 
 if __name__ == "__main__":
