@@ -192,6 +192,37 @@
       color: #1f2937;
     }
 
+    .alert {
+      padding: 15px 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .alert-success {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    .alert-error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
     @media (max-width: 768px) {
       .layout {
         flex-direction: column;
@@ -235,6 +266,7 @@
     <a href="/dashboard">📊 Dashboard</a>
     <a href="/add">➕ Add Member</a>
     <a href="/members">👥 All Members</a>
+    <a href="/logout" style="margin-top: 20px; background: rgba(255,255,255,0.1);">🚪 Logout</a>
   </div>
 
   <!-- Main -->
@@ -244,6 +276,16 @@
       <h1>Dashboard Overview</h1>
       <a href="/add" class="btn">+ Add New Member</a>
     </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
 
     <!-- Stats -->
     <div class="stats">
