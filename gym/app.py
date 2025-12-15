@@ -61,11 +61,8 @@ def get_today_sheet():
     sheet_name = f"Attd_{today_str}"
     
     try:
-        # Try to open today's sheet
         return db.worksheet(sheet_name)
     except gspread.WorksheetNotFound:
-        # If not found, create it with headers
-        # We put 'name' in the sheet too, so you can just print this sheet easily
         new_sheet = db.add_worksheet(title=sheet_name, rows=500, cols=5)
         new_sheet.append_row(["member_id", "name", "in_time", "out_time", "date"])
         return new_sheet
@@ -120,15 +117,12 @@ def dashboard():
     members = members_sheet.get_all_records()
     payments = payments_sheet.get_all_records()
     
-    # 1. Get Today's Live Attendance
-    # This automatically resets every day because it looks for a new sheet
+    # Get Today's Live Attendance
     today_sheet = get_today_sheet()
     todays_records = today_sheet.get_all_records()
-    
-    # Reverse so the latest person is at the top
     todays_records.reverse()
 
-    # 2. Simple Revenue Stats
+    # Revenue Stats
     monthly_revenue = defaultdict(float)
     total_revenue = 0
     for p in payments:
@@ -145,8 +139,6 @@ def dashboard():
     current_month = date.today().strftime("%Y-%m")
     current_month_revenue = monthly_revenue.get(current_month, 0)
     
-    # We pass 'todays_records' as 'recent_checkins' to reuse your template logic
-    # But now it ONLY contains today's people.
     return render_template(
         "dashboard.html",
         members=members,
@@ -210,7 +202,8 @@ def renew_membership(member_id):
 @app.route("/qr/<member_id>")
 @login_required
 def qr_code(member_id):
-    checkin_url = url_for("checkin", member_id=member_id, _external=True)
+    # Generate URL to the verification page (not direct check-in)
+    checkin_url = url_for("verify_checkin", _external=True)
     qr = qrcode.QRCode(box_size=10, border=4)
     qr.add_data(checkin_url)
     qr.make(fit=True)
@@ -220,36 +213,80 @@ def qr_code(member_id):
     img.save(os.path.join(QR_FOLDER, filename))
     return render_template("qr.html", member_id=member_id, qr_file=f"qr/{filename}")
 
-@app.route("/checkin/<member_id>")
-def checkin(member_id):
-    # 1. Get or Create TODAY'S sheet
-    today_sheet = get_today_sheet()
+@app.route("/verify", methods=["GET", "POST"])
+def verify_checkin():
+    """
+    Member scans QR and lands here to enter their Member ID
+    """
+    if request.method == "POST":
+        entered_id = request.form.get("member_id", "").strip().upper()
+        
+        if not entered_id:
+            flash("Please enter your Member ID", "error")
+            return render_template("verify_checkin.html")
+        
+        # Check if member exists
+        members = members_sheet.get_all_records()
+        member = None
+        
+        for m in members:
+            if str(m.get("member_id", "")).upper() == entered_id:
+                member = m
+                break
+        
+        if not member:
+            flash(f"Member ID '{entered_id}' not found. Please check and try again.", "error")
+            return render_template("verify_checkin.html")
+        
+        # Check if membership is expired
+        if member.get("end_date", "") < date.today().isoformat():
+            flash(f"Membership expired on {member.get('end_date')}. Please renew to continue.", "error")
+            return render_template("verify_checkin.html")
+        
+        # Member verified - process check-in
+        return process_checkin(entered_id, member.get("name"))
     
+    # GET request - show verification form
+    return render_template("verify_checkin.html")
+
+def process_checkin(member_id, member_name):
+    """
+    Process the actual check-in/check-out after verification
+    """
+    today_sheet = get_today_sheet()
     today_str = date.today().isoformat()
     now_time = datetime.now().strftime("%I:%M %p")
     
-    # 2. Find Member Name (So we can save it in the daily sheet for easy printing)
-    members = members_sheet.get_all_records()
-    member_name = "Unknown"
-    for m in members:
-        if m.get("member_id") == member_id:
-            member_name = m.get("name")
-            break
-
-    # 3. Check if they already checked in TODAY
+    # Check if they already checked in TODAY
     records = today_sheet.get_all_records()
     
     for i, row in enumerate(records, start=2):
-        # We only check member_id in this specific daily sheet
         if row.get("member_id") == member_id:
             if not row.get("out_time"):
-                today_sheet.update_cell(i, 4, now_time) # Update Exit Time
-                return render_template("checkin_success.html", message="Exit Marked", emoji="🚪", member_id=member_id)
-            return render_template("checkin_success.html", message="Already Checked In", emoji="✅", member_id=member_id)
-            
-    # 4. New Entry for Today
+                # Mark exit
+                today_sheet.update_cell(i, 4, now_time)
+                return render_template("checkin_success.html", 
+                                     message="Exit Marked Successfully", 
+                                     emoji="🚪", 
+                                     member_id=member_id,
+                                     member_name=member_name,
+                                     time=now_time)
+            # Already checked in and out
+            return render_template("checkin_success.html", 
+                                 message="Already Checked In Today", 
+                                 emoji="✅", 
+                                 member_id=member_id,
+                                 member_name=member_name,
+                                 time=now_time)
+    
+    # New entry for today
     today_sheet.append_row([member_id, member_name, now_time, "", today_str])
-    return render_template("checkin_success.html", message="Entry Marked", emoji="🏋️", member_id=member_id)
+    return render_template("checkin_success.html", 
+                         message="Entry Marked Successfully", 
+                         emoji="🏋️", 
+                         member_id=member_id,
+                         member_name=member_name,
+                         time=now_time)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
