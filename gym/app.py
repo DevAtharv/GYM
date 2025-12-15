@@ -45,6 +45,7 @@ except gspread.WorksheetNotFound:
     payments_sheet = db.add_worksheet(title="payments", rows=1000, cols=6)
     payments_sheet.append_row(["transaction_id", "member_id", "amount", "date", "type", "notes"])
 
+# Migration check
 if len(payments_sheet.get_all_values()) <= 1:
     print("Migrating existing member fees to payments ledger...")
     existing_members = members_sheet.get_all_records()
@@ -123,32 +124,74 @@ def dashboard():
     members = members_sheet.get_all_records()
     payments = payments_sheet.get_all_records()
     
+    # 1. Attendance Data
     today_sheet = get_today_sheet()
     todays_records = today_sheet.get_all_records()
     todays_records.reverse()
 
+    # 2. Financial Analysis
     monthly_revenue = defaultdict(float)
     total_revenue = 0
+    
+    current_month_key = datetime.now(IST).strftime("%Y-%m")
+    
+    # Calculate Last Month Key (e.g., if now is 2025-12, last is 2025-11)
+    first_day_this_month = datetime.now(IST).replace(day=1)
+    last_month_end = first_day_this_month - timedelta(days=1)
+    last_month_key = last_month_end.strftime("%Y-%m")
+    
+    # Breakdown: Join vs Renewal
+    revenue_breakdown = {"Join": 0, "Renewal": 0}
+
     for p in payments:
         try:
             amount = float(p.get("amount", 0))
             txn_date = p.get("date", "")
+            txn_type = p.get("type", "Other")
+            
             if txn_date and amount > 0:
                 year_month = txn_date[:7]
                 monthly_revenue[year_month] += amount
                 total_revenue += amount
+                
+                # If this payment is from THIS month, add to breakdown
+                if year_month == current_month_key:
+                    if "Join" in txn_type:
+                        revenue_breakdown["Join"] += amount
+                    elif "Renewal" in txn_type:
+                        revenue_breakdown["Renewal"] += amount
         except:
             continue
 
-    current_month = datetime.now(IST).strftime("%Y-%m")
-    current_month_revenue = monthly_revenue.get(current_month, 0)
+    current_month_revenue = monthly_revenue.get(current_month_key, 0)
+    last_month_revenue = monthly_revenue.get(last_month_key, 0)
+
+    # Calculate Growth %
+    revenue_growth = 0
+    if last_month_revenue > 0:
+        revenue_growth = ((current_month_revenue - last_month_revenue) / last_month_revenue) * 100
+    elif current_month_revenue > 0:
+        revenue_growth = 100 # 100% growth if last month was 0
+
+    # 3. Recent Transactions (Last 10)
+    recent_txns = payments[-10:]
+    recent_txns.reverse()
     
+    # Add Member Names to Transactions for display
+    member_map = {m.get("member_id"): m.get("name") for m in members}
+    for txn in recent_txns:
+        txn['member_name'] = member_map.get(txn.get("member_id"), "Unknown Member")
+
     return render_template(
         "dashboard.html",
         members=members,
         recent_checkins=todays_records,
         total_revenue=total_revenue,
-        current_month_revenue=current_month_revenue
+        current_month_revenue=current_month_revenue,
+        last_month_revenue=last_month_revenue,
+        revenue_growth=revenue_growth,
+        revenue_breakdown=revenue_breakdown,
+        recent_transactions=recent_txns
     )
 
 @app.route("/members")
@@ -175,7 +218,6 @@ def add_member():
         ])
         
         flash(f'Member {member_id} added!', 'success')
-        # Redirect to members list instead of individual QR since we don't use them anymore
         return redirect(url_for("members")) 
     return render_template("add_member.html")
 
@@ -204,24 +246,18 @@ def renew_membership(member_id):
     member = next((m for m in all_members if m.get("member_id") == member_id), None)
     return render_template("renew.html", member=member) if member else redirect(url_for('members'))
 
-# --- NEW: MASTER QR ROUTE ---
 @app.route("/master-qr")
 @login_required
 def master_qr():
-    """Generates the single Master QR for the gym"""
     checkin_url = url_for("verify_checkin", _external=True)
-    
     qr = qrcode.QRCode(box_size=10, border=4)
     qr.add_data(checkin_url)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    
     filename = "MASTER_QR.png"
     img.save(os.path.join(QR_FOLDER, filename))
-    
     return render_template("qr.html", member_id="GYM MASTER QR", qr_file=f"qr/{filename}")
 
-# Keeping individual route just in case, but it points to the same verify page
 @app.route("/qr/<member_id>")
 @login_required
 def qr_code(member_id):
@@ -231,7 +267,6 @@ def qr_code(member_id):
 def verify_checkin():
     if request.method == "POST":
         entered_id = request.form.get("member_id", "").strip().upper()
-        
         if not entered_id:
             flash("Please enter your Member ID", "error")
             return render_template("verify_checkin.html")
@@ -252,7 +287,6 @@ def verify_checkin():
             return render_template("verify_checkin.html")
         
         return process_checkin(entered_id, member.get("name"))
-    
     return render_template("verify_checkin.html")
 
 def process_checkin(member_id, member_name):
