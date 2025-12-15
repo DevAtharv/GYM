@@ -169,6 +169,55 @@
             transform: scale(1.05);
         }
 
+        .renew-btn {
+            background: #27ae60;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: inline-block;
+            margin-left: 5px;
+        }
+
+        .renew-btn:hover {
+            background: #229954;
+            transform: scale(1.05);
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
         .search-box {
             margin-bottom: 20px;
             width: 100%;
@@ -221,8 +270,19 @@
         <div class="actions">
             <a href="/add" class="btn btn-primary">+ Add Member</a>
             <a href="/dashboard" class="btn btn-secondary">← Dashboard</a>
+            <a href="/logout" class="btn btn-secondary">🚪 Logout</a>
         </div>
     </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <!-- Stats -->
     <div class="stats">
@@ -258,7 +318,7 @@
                     <th>Start Date</th>
                     <th>End Date</th>
                     <th>Status</th>
-                    <th>QR Code</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
 
@@ -283,7 +343,11 @@
                         <a class="qr-btn"
                            href="{{ url_for('qr_code', member_id=m.member_id) }}"
                            target="_blank">
-                           📱 View QR
+                           📱 QR
+                        </a>
+                        <a class="renew-btn"
+                           href="{{ url_for('renew_membership', member_id=m.member_id) }}">
+                           🔄 Renew
                         </a>
                     </td>
                 </tr>
