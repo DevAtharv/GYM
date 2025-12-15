@@ -3,353 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <title>Gym Dashboard</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
       background: #f4f6f8;
       color: #1f2937;
     }
-
-    .layout {
-      display: flex;
-      min-height: 100vh;
-    }
-
+    .layout { display: flex; min-height: 100vh; }
+    
     /* Sidebar */
     .sidebar {
       width: 240px;
       background: linear-gradient(180deg, #2563eb, #1e40af);
       color: white;
       padding: 20px;
-      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
     }
-
-    .sidebar h2 {
-      margin: 0 0 30px;
-      font-size: 22px;
-      font-weight: 700;
-    }
-
+    .sidebar h2 { margin: 0 0 30px; font-size: 22px; }
     .sidebar a {
-      display: block;
-      color: white;
-      text-decoration: none;
-      padding: 12px 15px;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      transition: all 0.2s ease;
+      display: block; color: white; text-decoration: none;
+      padding: 12px 15px; border-radius: 8px; margin-bottom: 8px;
     }
+    .sidebar a:hover { background: rgba(255,255,255,0.2); }
 
-    .sidebar a:hover {
-      background: rgba(255,255,255,0.2);
-      transform: translateX(5px);
-    }
-
-    /* Main */
-    .main {
-      flex: 1;
-      padding: 30px;
-      overflow-x: auto;
-    }
-
+    /* Main Content */
+    .main { flex: 1; padding: 30px; overflow-x: auto; }
+    
     .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: flex; justify-content: space-between; align-items: center;
       margin-bottom: 25px;
-      flex-wrap: wrap;
-      gap: 15px;
     }
-
-    .header h1 {
-      margin: 0;
-      font-size: 28px;
-    }
-
     .btn {
-      background: #2563eb;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 10px;
-      text-decoration: none;
-      font-weight: 600;
-      transition: all 0.3s ease;
-      display: inline-block;
+      background: #2563eb; color: white; padding: 12px 20px;
+      border-radius: 10px; text-decoration: none; font-weight: 600;
     }
 
-    .btn:hover {
-      background: #1e40af;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
-    }
-
-    .card {
-      background: white;
-      border-radius: 16px;
-      padding: 25px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
-      margin-bottom: 30px;
-    }
-
-    .card h3 {
-      margin: 0 0 20px;
-      font-size: 20px;
-      color: #1f2937;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th {
-      text-align: left;
-      font-size: 12px;
-      color: #6b7280;
-      text-transform: uppercase;
-      padding-bottom: 15px;
-      font-weight: 600;
-    }
-
-    td {
-      padding: 16px 8px;
-      border-top: 1px solid #e5e7eb;
-      font-size: 14px;
-    }
-
-    tr:hover {
-      background: #f9fafb;
-    }
-
-    .status {
-      padding: 6px 14px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      display: inline-block;
-    }
-
-    .active {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .expired {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .qr-btn {
-      background: #2563eb;
-      color: white;
-      padding: 8px 16px;
-      border-radius: 8px;
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 600;
-      display: inline-block;
-      transition: all 0.2s ease;
-    }
-
-    .qr-btn:hover {
-      background: #1e40af;
-      transform: scale(1.05);
-    }
-
+    /* Cards */
     .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px; margin-bottom: 30px;
     }
-
     .stat-card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
+    .stat-card h4 { margin: 0 0 8px; color: #6b7280; font-size: 13px; text-transform: uppercase; }
+    .stat-card .value { font-size: 32px; font-weight: 700; color: #1f2937; }
 
-    .stat-card h4 {
-      margin: 0 0 8px;
-      color: #6b7280;
-      font-size: 13px;
-      font-weight: 600;
-      text-transform: uppercase;
+    /* Tables */
+    .card {
+      background: white; border-radius: 16px; padding: 25px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px;
     }
-
-    .stat-card .value {
-      font-size: 32px;
-      font-weight: 700;
-      color: #1f2937;
-    }
-
-    .alert {
-      padding: 15px 20px;
-      border-radius: 12px;
-      margin-bottom: 20px;
-      font-size: 14px;
-      animation: slideDown 0.3s ease;
-    }
-
-    @keyframes slideDown {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .alert-success {
-      background: #dcfce7;
-      color: #166534;
-      border: 1px solid #bbf7d0;
-    }
-
-    .alert-error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fecaca;
-    }
+    .card h3 { margin: 0 0 20px; font-size: 18px; color: #1f2937; display: flex; align-items: center; gap: 10px; }
+    
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 12px; color: #6b7280; padding-bottom: 15px; }
+    td { padding: 16px 8px; border-top: 1px solid #e5e7eb; font-size: 14px; }
+    
+    .status { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .active { background: #dcfce7; color: #166534; }
+    .expired { background: #fee2e2; color: #991b1b; }
+    .checkin-time { color: #2563eb; font-weight: 600; }
 
     @media (max-width: 768px) {
-      .layout {
-        flex-direction: column;
-      }
-
-      .sidebar {
-        width: 100%;
-        padding: 15px;
-      }
-
-      .sidebar h2 {
-        margin-bottom: 15px;
-      }
-
-      .main {
-        padding: 20px;
-      }
-
-      .header h1 {
-        font-size: 22px;
-      }
-
-      table {
-        font-size: 12px;
-      }
-
-      td, th {
-        padding: 10px 5px;
-      }
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; }
+      .main { padding: 15px; }
     }
   </style>
 </head>
 
 <body>
-
 <div class="layout">
 
-  <!-- Sidebar -->
   <div class="sidebar">
     <h2>🏋️ Gym Manager</h2>
-    <a href="/dashboard">📊 Dashboard</a>
+    <a href="/dashboard" style="background: rgba(255,255,255,0.2);">📊 Overview</a>
     <a href="/add">➕ Add Member</a>
     <a href="/members">👥 All Members</a>
-    <a href="/logout" style="margin-top: 20px; background: rgba(255,255,255,0.1);">🚪 Logout</a>
+    <a href="/logout" style="margin-top: 20px; opacity: 0.7;">🚪 Logout</a>
   </div>
 
-  <!-- Main -->
   <div class="main">
-
     <div class="header">
-      <h1>Dashboard Overview</h1>
-      <a href="/add" class="btn">+ Add New Member</a>
+      <h1>Dashboard</h1>
+      <a href="/add" class="btn">+ Add Member</a>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">
-            {{ message }}
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
-    <!-- Stats -->
     <div class="stats">
       <div class="stat-card">
         <h4>Total Members</h4>
         <div class="value">{{ members|length }}</div>
       </div>
       <div class="stat-card">
-        <h4>Active Members</h4>
+        <h4>Active Now</h4>
         <div class="value">{{ members|selectattr('end_date', 'ge', now().strftime("%Y-%m-%d"))|list|length }}</div>
       </div>
-      <div class="stat-card">
-        <h4>Expired</h4>
-        <div class="value">{{ members|selectattr('end_date', 'lt', now().strftime("%Y-%m-%d"))|list|length }}</div>
-      </div>
-      <div class="stat-card" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
-        <h4 style="color: rgba(255,255,255,0.9);">Total Revenue</h4>
+      <div class="stat-card" style="background: #2563eb; color: white;">
+        <h4 style="color: #bfdbfe;">Total Revenue</h4>
         <div class="value" style="color: white;">₹{{ "{:,.0f}".format(total_revenue) }}</div>
       </div>
-      <div class="stat-card" style="background: linear-gradient(135deg, #27ae60, #229954); color: white;">
-        <h4 style="color: rgba(255,255,255,0.9);">This Month</h4>
-        <div class="value" style="color: white;">₹{{ "{:,.0f}".format(current_month_revenue) }}</div>
-      </div>
       <div class="stat-card">
-        <h4>Last Month</h4>
-        <div class="value">₹{{ "{:,.0f}".format(last_month_revenue) }}</div>
+        <h4>This Month</h4>
+        <div class="value" style="color: #16a34a;">₹{{ "{:,.0f}".format(current_month_revenue) }}</div>
       </div>
     </div>
 
-    <!-- Members Table -->
     <div class="card">
-      <h3>Recent Members</h3>
+      <h3>⏱️ Recent Activity (Live Check-ins)</h3>
+      {% if recent_checkins %}
       <table>
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>End Date</th>
-            <th>Status</th>
-            <th>Actions</th>
+            <th>Member Name</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Action</th>
           </tr>
         </thead>
-
         <tbody>
-        {% for m in members[-10:]|reverse %}
+        {% for a in recent_checkins %}
           <tr>
-            <td><strong>{{ m.member_id }}</strong></td>
-            <td>{{ m.name }}</td>
-            <td>{{ m.phone }}</td>
-            <td>{{ m.end_date }}</td>
-
-            {% if m.end_date >= now().strftime("%Y-%m-%d") %}
-              <td><span class="status active">✓ Active</span></td>
-            {% else %}
-              <td><span class="status expired">⨯ Expired</span></td>
-            {% endif %}
-
             <td>
-              <a href="{{ url_for('qr_code', member_id=m.member_id) }}" 
-                 class="qr-btn"
-                 target="_blank">
-                📱 View QR
-              </a>
+              <strong>{{ a.member_name }}</strong><br>
+              <span style="font-size: 11px; color: #888;">{{ a.member_id }}</span>
+            </td>
+            <td>{{ a.date }}</td>
+            <td class="checkin-time">{{ a.entry_time }}</td>
+            <td>
+              {% if a.exit_time %}
+                <span class="status expired">Checked Out at {{ a.exit_time }}</span>
+              {% else %}
+                <span class="status active">IN GYM</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <p style="color: #666; font-style: italic;">No attendance records found yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3>👥 Newest Members</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>End Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for m in members[-5:]|reverse %}
+          <tr>
+            <td>{{ m.name }}</td>
+            <td>{{ m.end_date }}</td>
+            <td>
+              {% if m.end_date >= now().strftime("%Y-%m-%d") %}
+                <span class="status active">Active</span>
+              {% else %}
+                <span class="status expired">Expired</span>
+              {% endif %}
             </td>
           </tr>
         {% endfor %}
@@ -357,140 +176,7 @@
       </table>
     </div>
 
-    <!-- Attendance Chart -->
-    <div class="card">
-      <h3>Attendance Trend (Last 7 Days)</h3>
-      <canvas id="attendanceChart" style="max-height: 300px;"></canvas>
-    </div>
-
-    <!-- Revenue Chart -->
-    <div class="card">
-      <h3>💰 Monthly Revenue Analysis (Last 6 Months)</h3>
-      <canvas id="revenueChart" style="max-height: 300px;"></canvas>
-    </div>
-
   </div>
 </div>
-
-<script>
-// Attendance Chart
-new Chart(document.getElementById("attendanceChart"), {
-  type: "line",
-  data: {
-    labels: {{ chart_dates | tojson }},
-    datasets: [{
-      label: 'Daily Attendance',
-      data: {{ chart_counts | tojson }},
-      borderColor: "#2563eb",
-      backgroundColor: "rgba(37,99,235,0.1)",
-      fill: true,
-      tension: 0.4,
-      borderWidth: 3,
-      pointBackgroundColor: "#2563eb",
-      pointBorderColor: "#fff",
-      pointBorderWidth: 2,
-      pointRadius: 5,
-      pointHoverRadius: 7
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: true,
-    plugins: { 
-      legend: { 
-        display: true,
-        position: 'top'
-      },
-      tooltip: {
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        padding: 12,
-        cornerRadius: 8
-      }
-    },
-    scales: { 
-      y: { 
-        beginAtZero: true,
-        ticks: {
-          precision: 0
-        },
-        grid: {
-          color: 'rgba(0,0,0,0.05)'
-        }
-      },
-      x: {
-        grid: {
-          display: false
-        }
-      }
-    }
-  }
-});
-
-// Revenue Chart
-const revenueMonths = {{ revenue_months | tojson }};
-const revenueAmounts = {{ revenue_amounts | tojson }};
-
-// Format months to display as "Jan 2024" etc
-const formattedMonths = revenueMonths.map(month => {
-  const [year, monthNum] = month.split('-');
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${monthNames[parseInt(monthNum) - 1]} ${year}`;
-});
-
-new Chart(document.getElementById("revenueChart"), {
-  type: "bar",
-  data: {
-    labels: formattedMonths,
-    datasets: [{
-      label: 'Revenue (₹)',
-      data: revenueAmounts,
-      backgroundColor: "rgba(102, 126, 234, 0.8)",
-      borderColor: "#667eea",
-      borderWidth: 2,
-      borderRadius: 8,
-      hoverBackgroundColor: "rgba(102, 126, 234, 1)"
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: true,
-    plugins: { 
-      legend: { 
-        display: true,
-        position: 'top'
-      },
-      tooltip: {
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        padding: 12,
-        cornerRadius: 8,
-        callbacks: {
-          label: function(context) {
-            return 'Revenue: ₹' + context.parsed.y.toLocaleString('en-IN');
-          }
-        }
-      }
-    },
-    scales: { 
-      y: { 
-        beginAtZero: true,
-        ticks: {
-          callback: function(value) {
-            return '₹' + value.toLocaleString('en-IN');
-          }
-        },
-        grid: {
-          color: 'rgba(0,0,0,0.05)'
-        }
-      },
-      x: {
-        grid: {
-          display: false
-        }
-      }
-    }
-  }
-});
-</script>
-
 </body>
 </html>
