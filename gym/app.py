@@ -13,11 +13,10 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "gym-secret-key-change-this-in-production")
 
 # ---------------- ADMIN CREDENTIALS ----------------
-# You can change these or store in environment variables
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "gym123")
 
-# ---------------- GOOGLE SHEETS ----------------
+# ---------------- GOOGLE SHEETS SETUP ----------------
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -31,15 +30,52 @@ db = client.open("GymDB")
 members_sheet = db.worksheet("members")
 attendance_sheet = db.worksheet("attendance")
 
+# --- NEW: PAYMENTS SHEET SETUP & MIGRATION ---
+# This block automatically creates a 'payments' sheet to track history
+try:
+    payments_sheet = db.worksheet("payments")
+except gspread.WorksheetNotFound:
+    # Create payments sheet if it doesn't exist
+    payments_sheet = db.add_worksheet(title="payments", rows=1000, cols=6)
+    payments_sheet.append_row(["transaction_id", "member_id", "amount", "date", "type", "notes"])
+
+# Automatic Migration: Backfill payments if empty but members exist
+# This ensures you don't lose your current revenue numbers
+if len(payments_sheet.get_all_values()) <= 1:
+    print("Migrating existing member fees to payments ledger...")
+    existing_members = members_sheet.get_all_records()
+    
+    for m in existing_members:
+        try:
+            fee = m.get("fees", 0)
+            start = m.get("start_date", date.today().isoformat())
+            m_id = m.get("member_id")
+            # Create a historical transaction for their joining
+            if fee and str(fee).isdigit() and int(fee) > 0:
+                payments_sheet.append_row([
+                    f"INIT_{m_id}", # Transaction ID
+                    m_id,
+                    fee,
+                    start,
+                    "Join (Migrated)",
+                    "Auto-migrated from current status"
+                ])
+        except Exception as e:
+            print(f"Skipped migrating member {m.get('member_id')}: {e}")
+
 # ---------------- HELPERS ----------------
 def generate_member_id():
-    rows = members_sheet.get_all_records()
-    return f"M{len(rows)+1:03d}"
+    rows = members_sheet.get_all_values()
+    # Subtract 1 for header, but handle case where sheet is empty/new
+    count = len(rows) - 1 if len(rows) > 0 else 0
+    return f"M{count+1:03d}"
+
+def generate_txn_id():
+    return f"TXN{int(datetime.now().timestamp())}"
 
 QR_FOLDER = os.path.join(app.root_path, "static", "qr")
 os.makedirs(QR_FOLDER, exist_ok=True)
 
-# Login required decorator
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -91,8 +127,44 @@ def logout():
 def dashboard():
     members = members_sheet.get_all_records()
     attendance = attendance_sheet.get_all_records()
+    
+    # --- REVENUE CALCULATION FIXED (Uses Payments Sheet) ---
+    # We now calculate revenue by summing up the 'payments' sheet
+    payments = payments_sheet.get_all_records()
+    
+    monthly_revenue = defaultdict(float)
+    total_revenue = 0
+    
+    for p in payments:
+        try:
+            amount = float(p.get("amount", 0))
+            txn_date = p.get("date", "")
+            
+            if txn_date and amount > 0:
+                # Extract YYYY-MM
+                year_month = txn_date[:7]
+                monthly_revenue[year_month] += amount
+                total_revenue += amount
+        except (ValueError, TypeError):
+            continue
 
-    # Attendance map
+    # Sort months for chart
+    sorted_months = sorted(monthly_revenue.keys())[-6:] if monthly_revenue else []
+    revenue_months = sorted_months
+    revenue_amounts = [monthly_revenue[month] for month in sorted_months]
+    
+    # Calculate specific period revenues
+    current_month = date.today().strftime("%Y-%m")
+    current_month_revenue = monthly_revenue.get(current_month, 0)
+    
+    try:
+        last_month_date = date.today().replace(day=1) - timedelta(days=1)
+        last_month = last_month_date.strftime("%Y-%m")
+        last_month_revenue = monthly_revenue.get(last_month, 0)
+    except:
+        last_month_revenue = 0
+
+    # --- ATTENDANCE CHART ---
     attendance_map = {}
     for a in attendance:
         date_key = a.get("date", "")
@@ -101,40 +173,6 @@ def dashboard():
 
     chart_dates = sorted(attendance_map.keys())[-7:]
     chart_counts = [attendance_map[d] for d in chart_dates]
-
-    # Revenue Analysis
-    monthly_revenue = defaultdict(float)
-    total_revenue = 0
-    
-    for member in members:
-        try:
-            fees = float(member.get("fees", 0))
-            start_date = member.get("start_date", "")
-            
-            if start_date and fees > 0:
-                # Extract year-month from start_date (format: YYYY-MM-DD)
-                year_month = start_date[:7]  # Gets YYYY-MM
-                monthly_revenue[year_month] += fees
-                total_revenue += fees
-        except (ValueError, TypeError):
-            continue
-    
-    # Sort by month and get last 6 months
-    sorted_months = sorted(monthly_revenue.keys())[-6:] if monthly_revenue else []
-    revenue_months = sorted_months
-    revenue_amounts = [monthly_revenue[month] for month in sorted_months]
-    
-    # Calculate this month's revenue
-    current_month = date.today().strftime("%Y-%m")
-    current_month_revenue = monthly_revenue.get(current_month, 0)
-    
-    # Calculate last month's revenue
-    try:
-        last_month_date = date.today().replace(day=1) - timedelta(days=1)
-        last_month = last_month_date.strftime("%Y-%m")
-        last_month_revenue = monthly_revenue.get(last_month, 0)
-    except:
-        last_month_revenue = 0
 
     return render_template(
         "dashboard.html",
@@ -159,15 +197,28 @@ def members():
 def add_member():
     if request.method == "POST":
         member_id = generate_member_id()
+        fees = request.form["fees"]
+        join_date = date.today().isoformat()
 
+        # 1. Add to Members Sheet (Current Status)
         members_sheet.append_row([
             member_id,
             request.form["name"],
             request.form["phone"],
             "-",
-            request.form["fees"],
-            date.today().isoformat(),
+            fees,
+            join_date,
             request.form["end_date"]
+        ])
+
+        # 2. Add to Payments Sheet (Financial History)
+        payments_sheet.append_row([
+            generate_txn_id(),
+            member_id,
+            fees,
+            join_date,
+            "Join",
+            "Initial Membership"
         ])
 
         flash(f'Member {member_id} added successfully!', 'success')
@@ -179,30 +230,39 @@ def add_member():
 @login_required
 def renew_membership(member_id):
     if request.method == "POST":
-        # Get all members
         all_members = members_sheet.get_all_records()
         
-        # Find the member
         for i, member in enumerate(all_members, start=2):
             if member.get("member_id") == member_id:
-                # Get new end date and fees from form
                 new_end_date = request.form.get("new_end_date")
                 new_fees = request.form.get("fees")
                 
-                # Update the end_date (column 7) and fees (column 5)
+                # 1. Update Member Expiry in 'members' sheet
                 members_sheet.update_cell(i, 7, new_end_date)
+                # We update the 'fees' column too just to show their CURRENT plan cost,
+                # but we rely on the payments sheet for totals.
                 members_sheet.update_cell(i, 5, new_fees)
                 
-                flash(f'Membership renewed for {member.get("name")} until {new_end_date}!', 'success')
+                # 2. Add NEW Transaction to Payments Sheet
+                # This is the key fix: We record a NEW payment instead of overwriting.
+                payments_sheet.append_row([
+                    generate_txn_id(),
+                    member_id,
+                    new_fees,
+                    date.today().isoformat(),
+                    "Renewal",
+                    f"Renewed until {new_end_date}"
+                ])
+                
+                flash(f'Membership renewed for {member.get("name")}! Payment recorded.', 'success')
                 return redirect(url_for('members'))
         
         flash('Member not found!', 'error')
         return redirect(url_for('members'))
     
-    # GET request - show renewal form
+    # GET request
     all_members = members_sheet.get_all_records()
     member = None
-    
     for m in all_members:
         if m.get("member_id") == member_id:
             member = m
@@ -217,11 +277,8 @@ def renew_membership(member_id):
 @app.route("/qr/<member_id>")
 @login_required
 def qr_code(member_id):
-    """Generate and display QR code for a member"""
-    # Generate QR code URL for check-in
     checkin_url = url_for("checkin", member_id=member_id, _external=True)
     
-    # Create QR code
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -231,7 +288,6 @@ def qr_code(member_id):
     qr.add_data(checkin_url)
     qr.make(fit=True)
     
-    # Save QR code image
     img = qr.make_image(fill_color="black", back_color="white")
     qr_filename = f"{member_id}.png"
     qr_path = os.path.join(QR_FOLDER, qr_filename)
@@ -245,39 +301,32 @@ def qr_code(member_id):
 
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
-    """Handle member check-in/check-out via QR code scan - No login required"""
     today = date.today().isoformat()
     now_time = datetime.now().strftime("%H:%M:%S")
 
     records = attendance_sheet.get_all_records()
 
-    # Check if member already checked in today
     for i, row in enumerate(records, start=2):
         if row.get("member_id") == member_id and row.get("date") == today:
-            # If exit_time is empty, mark exit
             if not row.get("exit_time") or row.get("exit_time") == "":
                 attendance_sheet.update_cell(i, 4, now_time)
                 return render_template("checkin_success.html", 
                                       message="Exit Marked", 
                                       emoji="🚪",
                                       member_id=member_id)
-            # Already checked in and out
             return render_template("checkin_success.html", 
                                   message="Already Checked In Today", 
                                   emoji="✅",
                                   member_id=member_id)
 
-    # New check-in for today
     attendance_sheet.append_row([member_id, today, now_time, ""])
     return render_template("checkin_success.html", 
                           message="Entry Marked", 
                           emoji="🏋️",
                           member_id=member_id)
 
-# ---------------- RUN ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"\n🏋️ Gym Management System starting on http://localhost:{port}")
     print(f"🔐 Admin Login: ID = '{ADMIN_ID}' | Password = '{ADMIN_PASSWORD}'")
-    print(f"📱 QR codes will be saved to: {QR_FOLDER}\n")
     app.run(host="0.0.0.0", port=port, debug=True)
