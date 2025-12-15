@@ -301,6 +301,18 @@
         <h4>Expired</h4>
         <div class="value">{{ members|selectattr('end_date', 'lt', now().strftime("%Y-%m-%d"))|list|length }}</div>
       </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+        <h4 style="color: rgba(255,255,255,0.9);">Total Revenue</h4>
+        <div class="value" style="color: white;">₹{{ "{:,.0f}".format(total_revenue) }}</div>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #27ae60, #229954); color: white;">
+        <h4 style="color: rgba(255,255,255,0.9);">This Month</h4>
+        <div class="value" style="color: white;">₹{{ "{:,.0f}".format(current_month_revenue) }}</div>
+      </div>
+      <div class="stat-card">
+        <h4>Last Month</h4>
+        <div class="value">₹{{ "{:,.0f}".format(last_month_revenue) }}</div>
+      </div>
     </div>
 
     <!-- Members Table -->
@@ -351,10 +363,17 @@
       <canvas id="attendanceChart" style="max-height: 300px;"></canvas>
     </div>
 
+    <!-- Revenue Chart -->
+    <div class="card">
+      <h3>💰 Monthly Revenue Analysis (Last 6 Months)</h3>
+      <canvas id="revenueChart" style="max-height: 300px;"></canvas>
+    </div>
+
   </div>
 </div>
 
 <script>
+// Attendance Chart
 new Chart(document.getElementById("attendanceChart"), {
   type: "line",
   data: {
@@ -393,6 +412,71 @@ new Chart(document.getElementById("attendanceChart"), {
         beginAtZero: true,
         ticks: {
           precision: 0
+        },
+        grid: {
+          color: 'rgba(0,0,0,0.05)'
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        }
+      }
+    }
+  }
+});
+
+// Revenue Chart
+const revenueMonths = {{ revenue_months | tojson }};
+const revenueAmounts = {{ revenue_amounts | tojson }};
+
+// Format months to display as "Jan 2024" etc
+const formattedMonths = revenueMonths.map(month => {
+  const [year, monthNum] = month.split('-');
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[parseInt(monthNum) - 1]} ${year}`;
+});
+
+new Chart(document.getElementById("revenueChart"), {
+  type: "bar",
+  data: {
+    labels: formattedMonths,
+    datasets: [{
+      label: 'Revenue (₹)',
+      data: revenueAmounts,
+      backgroundColor: "rgba(102, 126, 234, 0.8)",
+      borderColor: "#667eea",
+      borderWidth: 2,
+      borderRadius: 8,
+      hoverBackgroundColor: "rgba(102, 126, 234, 1)"
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { 
+      legend: { 
+        display: true,
+        position: 'top'
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        padding: 12,
+        cornerRadius: 8,
+        callbacks: {
+          label: function(context) {
+            return 'Revenue: ₹' + context.parsed.y.toLocaleString('en-IN');
+          }
+        }
+      }
+    },
+    scales: { 
+      y: { 
+        beginAtZero: true,
+        ticks: {
+          callback: function(value) {
+            return '₹' + value.toLocaleString('en-IN');
+          }
         },
         grid: {
           color: 'rgba(0,0,0,0.05)'
