@@ -22,7 +22,7 @@
             padding: 50px 40px;
             text-align: center;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 400px;
+            max-width: 450px;
             width: 100%;
             animation: slideUp 0.5s ease;
         }
@@ -55,28 +55,58 @@
             font-size: 32px;
         }
 
-        .member-id {
+        .member-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-label {
             color: #666;
-            font-size: 18px;
-            margin-bottom: 20px;
             font-weight: 600;
         }
 
-        .time {
-            color: #999;
-            font-size: 14px;
-            margin-bottom: 30px;
+        .info-value {
+            color: #333;
+            font-weight: 700;
+        }
+
+        .time-display {
+            font-size: 48px;
+            font-weight: 700;
+            color: #27ae60;
+            margin: 20px 0;
+            letter-spacing: 2px;
+        }
+
+        .date-display {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 20px;
         }
 
         .btn {
             display: inline-block;
-            padding: 12px 30px;
+            padding: 14px 32px;
             background: #27ae60;
             color: white;
             text-decoration: none;
-            border-radius: 10px;
+            border-radius: 12px;
             font-weight: 600;
             transition: all 0.3s ease;
+            margin-top: 10px;
         }
 
         .btn:hover {
@@ -135,6 +165,31 @@
                 box-shadow: inset 0px 0px 0px 30px #27ae60;
             }
         }
+
+        .message-note {
+            background: #e8f5e9;
+            border-left: 4px solid #27ae60;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: left;
+            font-size: 13px;
+            color: #2d5016;
+        }
+
+        @media (max-width: 480px) {
+            .success-card {
+                padding: 40px 25px;
+            }
+
+            h2 {
+                font-size: 26px;
+            }
+
+            .time-display {
+                font-size: 36px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -147,10 +202,36 @@
 
     <div class="emoji">{{ emoji }}</div>
     <h2>{{ message }}</h2>
-    <div class="member-id">Member: {{ member_id }}</div>
-    <div class="time">{{ now().strftime("%I:%M %p") }}</div>
     
-    <a href="/dashboard" class="btn">← Back to Dashboard</a>
+    <div class="time-display">{{ time }}</div>
+    <div class="date-display">{{ now().strftime("%A, %B %d, %Y") }}</div>
+
+    <div class="member-info">
+        <div class="info-row">
+            <span class="info-label">Member ID:</span>
+            <span class="info-value">{{ member_id }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Name:</span>
+            <span class="info-value">{{ member_name }}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Time:</span>
+            <span class="info-value">{{ time }}</span>
+        </div>
+    </div>
+
+    {% if "Entry" in message %}
+    <div class="message-note">
+        💪 <strong>Great!</strong> Your entry has been recorded. Have a fantastic workout! Remember to scan again when you leave.
+    </div>
+    {% elif "Exit" in message %}
+    <div class="message-note">
+        🎉 <strong>Well done!</strong> Your exit has been recorded. Great workout today! See you next time.
+    </div>
+    {% endif %}
+    
+    <a href="/verify" class="btn">← Check-in Another Member</a>
 </div>
 
 </body>
