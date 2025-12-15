@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Renew Membership - {{ member.name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .form-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h3 {
+            margin: 0 0 10px;
+            font-size: 26px;
+            color: #333;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .member-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .member-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .member-info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-label {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .info-value {
+            color: #333;
+            font-weight: 500;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .expired {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #229954;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .icon {
+            margin-right: 5px;
+        }
+
+        .alert {
+            padding: 12px 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        @media (max-width: 480px) {
+            .form-container {
+                padding: 30px 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="form-container">
+    <h3>🔄 Renew Membership</h3>
+    <div class="subtitle">Extend membership for this member</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Current Member Info -->
+    <div class="member-info">
+        <div class="member-info-row">
+            <span class="info-label">Member ID:</span>
+            <span class="info-value">{{ member.member_id }}</span>
+        </div>
+        <div class="member-info-row">
+            <span class="info-label">Name:</span>
+            <span class="info-value">{{ member.name }}</span>
+        </div>
+        <div class="member-info-row">
+            <span class="info-label">Phone:</span>
+            <span class="info-value">{{ member.phone }}</span>
+        </div>
+        <div class="member-info-row">
+            <span class="info-label">Current End Date:</span>
+            <span class="info-value">{{ member.end_date }}</span>
+        </div>
+        <div class="member-info-row">
+            <span class="info-label">Status:</span>
+            <span class="info-value">
+                {% if member.end_date >= now().strftime("%Y-%m-%d") %}
+                    <span class="status-badge active">✓ Active</span>
+                {% else %}
+                    <span class="status-badge expired">⨯ Expired</span>
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Renewal Form -->
+    <form method="POST">
+
+        <div class="form-group">
+            <label for="new_end_date">New End Date *</label>
+            <input
+                type="date"
+                id="new_end_date"
+                name="new_end_date"
+                required
+                min="{{ today }}"
+                value="{{ member.end_date }}"
+            >
+            <small style="color: #666; font-size: 12px;">Select the new expiry date for this membership</small>
+        </div>
+
+        <div class="form-group">
+            <label for="fees">Renewal Fees (₹) *</label>
+            <input
+                type="number"
+                id="fees"
+                name="fees"
+                placeholder="Enter renewal fees"
+                required
+                min="0"
+                step="1"
+                value="{{ member.fees }}"
+            >
+        </div>
+
+        <div class="button-group">
+            <button type="submit" class="btn btn-primary">
+                <span class="icon">✓</span> Renew Membership
+            </button>
+
+            <a href="/members" class="btn btn-secondary">
+                <span class="icon">←</span> Cancel
+            </a>
+        </div>
+
+    </form>
+</div>
+
+</body>
+</html>
