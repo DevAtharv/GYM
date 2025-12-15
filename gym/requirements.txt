@@ -3,3 +3,4 @@ gunicorn
 gspread
 oauth2client
 qrcode[pil]
+pytz
