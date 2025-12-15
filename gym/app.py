@@ -1,16 +1,28 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import os
 import json
-from datetime import date, datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from collections import defaultdict
 import qrcode
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import pytz  # NEW: Timezone support
 
 # ---------------- APP SETUP ----------------
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "gym-secret-key-change-this-in-production")
+
+# ---------------- TIMEZONE SETUP (FIXES TIME ISSUE) ----------------
+IST = pytz.timezone('Asia/Kolkata')
+
+def get_today_date():
+    """Returns today's date in IST"""
+    return datetime.now(IST).date().isoformat()
+
+def get_current_time():
+    """Returns current time in IST (12-hour format)"""
+    return datetime.now(IST).strftime("%I:%M %p")
 
 # ---------------- ADMIN CREDENTIALS ----------------
 ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
@@ -43,7 +55,7 @@ if len(payments_sheet.get_all_values()) <= 1:
     for m in existing_members:
         try:
             fee = m.get("fees", 0)
-            start = m.get("start_date", date.today().isoformat())
+            start = m.get("start_date", get_today_date())
             m_id = m.get("member_id")
             if fee and str(fee).isdigit() and int(fee) > 0:
                 payments_sheet.append_row([f"INIT_{m_id}", m_id, fee, start, "Join (Migrated)", "Auto-migrated"])
@@ -54,10 +66,10 @@ if len(payments_sheet.get_all_values()) <= 1:
 
 def get_today_sheet():
     """
-    Finds or creates a sheet specifically for TODAY'S date.
+    Finds or creates a sheet specifically for TODAY'S date (in IST).
     Format: 'Attd_YYYY-MM-DD'
     """
-    today_str = date.today().isoformat()
+    today_str = get_today_date()
     sheet_name = f"Attd_{today_str}"
     
     try:
@@ -73,7 +85,7 @@ def generate_member_id():
     return f"M{count+1:03d}"
 
 def generate_txn_id():
-    return f"TXN{int(datetime.now().timestamp())}"
+    return f"TXN{int(datetime.now(IST).timestamp())}"
 
 QR_FOLDER = os.path.join(app.root_path, "static", "qr")
 os.makedirs(QR_FOLDER, exist_ok=True)
@@ -89,7 +101,11 @@ def login_required(f):
 
 @app.context_processor
 def inject_now():
-    return {"now": datetime.now, "today": date.today().isoformat()}
+    # Makes 'now' and 'today' available in all templates (using IST)
+    return {
+        "now": lambda: datetime.now(IST),
+        "today": get_today_date()
+    }
 
 # ---------------- ROUTES ----------------
 @app.route("/")
@@ -136,7 +152,7 @@ def dashboard():
         except:
             continue
 
-    current_month = date.today().strftime("%Y-%m")
+    current_month = datetime.now(IST).strftime("%Y-%m")
     current_month_revenue = monthly_revenue.get(current_month, 0)
     
     return render_template(
@@ -159,7 +175,7 @@ def add_member():
     if request.method == "POST":
         member_id = generate_member_id()
         fees = request.form["fees"]
-        join_date = date.today().isoformat()
+        join_date = get_today_date()
         
         members_sheet.append_row([
             member_id, request.form["name"], request.form["phone"], 
@@ -188,7 +204,7 @@ def renew_membership(member_id):
                 members_sheet.update_cell(i, 5, fees)
                 
                 payments_sheet.append_row([
-                    generate_txn_id(), member_id, fees, date.today().isoformat(),
+                    generate_txn_id(), member_id, fees, get_today_date(),
                     "Renewal", f"Renewed until {new_end}"
                 ])
                 flash('Renewed successfully!', 'success')
@@ -202,7 +218,7 @@ def renew_membership(member_id):
 @app.route("/qr/<member_id>")
 @login_required
 def qr_code(member_id):
-    # Generate URL to the verification page (not direct check-in)
+    # Generate URL to the verification page
     checkin_url = url_for("verify_checkin", _external=True)
     qr = qrcode.QRCode(box_size=10, border=4)
     qr.add_data(checkin_url)
@@ -239,7 +255,7 @@ def verify_checkin():
             return render_template("verify_checkin.html")
         
         # Check if membership is expired
-        if member.get("end_date", "") < date.today().isoformat():
+        if member.get("end_date", "") < get_today_date():
             flash(f"Membership expired on {member.get('end_date')}. Please renew to continue.", "error")
             return render_template("verify_checkin.html")
         
@@ -254,8 +270,8 @@ def process_checkin(member_id, member_name):
     Process the actual check-in/check-out after verification
     """
     today_sheet = get_today_sheet()
-    today_str = date.today().isoformat()
-    now_time = datetime.now().strftime("%I:%M %p")
+    today_str = get_today_date()
+    now_time = get_current_time()  # Updated to use IST
     
     # Check if they already checked in TODAY
     records = today_sheet.get_all_records()
