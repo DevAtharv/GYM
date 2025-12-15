@@ -1,14 +1,20 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 import os
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from functools import wraps
 import qrcode
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # ---------------- APP SETUP ----------------
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET", "change-me")
+app.secret_key = os.environ.get("FLASK_SECRET", "gym-secret-key-change-this-in-production")
+
+# ---------------- ADMIN CREDENTIALS ----------------
+# You can change these or store in environment variables
+ADMIN_ID = os.environ.get("ADMIN_ID", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "gym123")
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = [
@@ -32,6 +38,16 @@ def generate_member_id():
 QR_FOLDER = os.path.join(app.root_path, "static", "qr")
 os.makedirs(QR_FOLDER, exist_ok=True)
 
+# Login required decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            flash('Please login to access this page', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.context_processor
 def inject_now():
     return {
@@ -42,9 +58,35 @@ def inject_now():
 # ---------------- ROUTES ----------------
 @app.route("/")
 def home():
-    return render_template("home.html")
+    if 'logged_in' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user_id = request.form.get("user_id")
+        password = request.form.get("password")
+        
+        if user_id == ADMIN_ID and password == ADMIN_PASSWORD:
+            session['logged_in'] = True
+            session['user_id'] = user_id
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid credentials. Please try again.', 'error')
+            return redirect(url_for('login'))
+    
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('login'))
 
 @app.route("/dashboard")
+@login_required
 def dashboard():
     members = members_sheet.get_all_records()
     attendance = attendance_sheet.get_all_records()
@@ -66,11 +108,13 @@ def dashboard():
     )
 
 @app.route("/members")
+@login_required
 def members():
     members_list = members_sheet.get_all_records()
     return render_template("members.html", members=members_list)
 
 @app.route("/add", methods=["GET", "POST"])
+@login_required
 def add_member():
     if request.method == "POST":
         member_id = generate_member_id()
@@ -85,11 +129,52 @@ def add_member():
             request.form["end_date"]
         ])
 
+        flash(f'Member {member_id} added successfully!', 'success')
         return redirect(url_for("qr_code", member_id=member_id))
 
     return render_template("add_member.html")
 
+@app.route("/renew/<member_id>", methods=["GET", "POST"])
+@login_required
+def renew_membership(member_id):
+    if request.method == "POST":
+        # Get all members
+        all_members = members_sheet.get_all_records()
+        
+        # Find the member
+        for i, member in enumerate(all_members, start=2):
+            if member.get("member_id") == member_id:
+                # Get new end date and fees from form
+                new_end_date = request.form.get("new_end_date")
+                new_fees = request.form.get("fees")
+                
+                # Update the end_date (column 7) and fees (column 5)
+                members_sheet.update_cell(i, 7, new_end_date)
+                members_sheet.update_cell(i, 5, new_fees)
+                
+                flash(f'Membership renewed for {member.get("name")} until {new_end_date}!', 'success')
+                return redirect(url_for('members'))
+        
+        flash('Member not found!', 'error')
+        return redirect(url_for('members'))
+    
+    # GET request - show renewal form
+    all_members = members_sheet.get_all_records()
+    member = None
+    
+    for m in all_members:
+        if m.get("member_id") == member_id:
+            member = m
+            break
+    
+    if not member:
+        flash('Member not found!', 'error')
+        return redirect(url_for('members'))
+    
+    return render_template("renew.html", member=member)
+
 @app.route("/qr/<member_id>")
+@login_required
 def qr_code(member_id):
     """Generate and display QR code for a member"""
     # Generate QR code URL for check-in
@@ -119,7 +204,7 @@ def qr_code(member_id):
 
 @app.route("/checkin/<member_id>")
 def checkin(member_id):
-    """Handle member check-in/check-out via QR code scan"""
+    """Handle member check-in/check-out via QR code scan - No login required"""
     today = date.today().isoformat()
     now_time = datetime.now().strftime("%H:%M:%S")
 
@@ -152,5 +237,6 @@ def checkin(member_id):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"\n🏋️ Gym Management System starting on http://localhost:{port}")
+    print(f"🔐 Admin Login: ID = '{ADMIN_ID}' | Password = '{ADMIN_PASSWORD}'")
     print(f"📱 QR codes will be saved to: {QR_FOLDER}\n")
     app.run(host="0.0.0.0", port=port, debug=True)
