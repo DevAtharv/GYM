@@ -592,7 +592,6 @@ For detailed documentation, visit:
 
 **Made with ❤️ for gym owners and fitness enthusiasts**
 
-[Report Bug](https://github.com/yourusername/gym-management-system/issues) · [Request Feature](https://github.com/yourusername/gym-management-system/issues) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
