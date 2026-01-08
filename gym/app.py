@@ -39,6 +39,14 @@ client = gspread.authorize(creds)
 db = client.open("GymDB")
 members_sheet = db.worksheet("members")
 
+# Initialize members sheet headers if needed
+try:
+    headers = members_sheet.row_values(1)
+    if not headers or headers[0] != "member_id":
+        members_sheet.insert_row(["member_id", "name", "phone", "plan", "fees", "start_date", "end_date"], 1)
+except:
+    members_sheet.insert_row(["member_id", "name", "phone", "plan", "fees", "start_date", "end_date"], 1)
+
 try:
     payments_sheet = db.worksheet("payments")
 except gspread.WorksheetNotFound:
@@ -126,23 +134,20 @@ def dashboard():
     payments = payments_sheet.get_all_records()
     
     # --- 1. DATE SELECTION LOGIC ---
-    # Check if user requested a specific date
     selected_date = request.args.get("date")
     
     if not selected_date:
-        selected_date = get_today_date() # Default to today
+        selected_date = get_today_date()
         
     # Try to fetch attendance for that date
     attendance_records = []
     sheet_name = f"Attd_{selected_date}"
     
     try:
-        # We try to open the sheet for the selected date
         target_sheet = db.worksheet(sheet_name)
         attendance_records = target_sheet.get_all_records()
-        attendance_records.reverse() # Show newest first
+        attendance_records.reverse()
     except gspread.WorksheetNotFound:
-        # If sheet doesn't exist, it means no one came that day (or future date)
         attendance_records = []
 
     # --- 2. Financial Analysis ---
@@ -151,7 +156,6 @@ def dashboard():
     
     current_month_key = datetime.now(IST).strftime("%Y-%m")
     
-    # Calculate Last Month Key
     first_day_this_month = datetime.now(IST).replace(day=1)
     last_month_end = first_day_this_month - timedelta(days=1)
     last_month_key = last_month_end.strftime("%Y-%m")
@@ -188,24 +192,69 @@ def dashboard():
         revenue_growth = 100 
 
     # --- 3. Recent Transactions ---
-    recent_txns = payments[-10:]
+    recent_txns = payments[-10:] if payments else []
     recent_txns.reverse()
     
     member_map = {m.get("member_id"): m.get("name") for m in members}
     for txn in recent_txns:
         txn['member_name'] = member_map.get(txn.get("member_id"), "Unknown Member")
 
+    # --- 4. CALCULATE MISSING METRICS ---
+    today_str = get_today_date()
+    
+    # Total members
+    total_members = len(members)
+    
+    # Active today - members who checked in today
+    active_today = len(attendance_records)
+    
+    # Expiring soon - memberships expiring within 7 days
+    expiring_date = (datetime.now(IST) + timedelta(days=7)).date().isoformat()
+    expiring_soon = sum(1 for m in members 
+                       if today_str <= m.get("end_date", "") <= expiring_date)
+    
+    # --- 5. CREATE ACTIVITY FEED ---
+    activities = []
+    
+    # Add recent check-ins as activities
+    for record in attendance_records[:5]:
+        activities.append({
+            'type': 'checkin',
+            'description': f"{record.get('name')} checked in",
+            'time': record.get('in_time', '')
+        })
+    
+    # Add recent transactions as activities
+    for txn in recent_txns[:3]:
+        if "Join" in txn.get("type", ""):
+            activities.append({
+                'type': 'signup',
+                'description': f"{txn.get('member_name')} joined the gym",
+                'time': txn.get('date', '')
+            })
+        elif "Renewal" in txn.get("type", ""):
+            activities.append({
+                'type': 'payment',
+                'description': f"{txn.get('member_name')} renewed membership",
+                'time': txn.get('date', '')
+            })
+
     return render_template(
         "dashboard.html",
         members=members,
-        recent_checkins=attendance_records, # Now holds selected date's records
-        selected_date=selected_date,        # Pass selected date to template
+        recent_checkins=attendance_records,
+        selected_date=selected_date,
         total_revenue=total_revenue,
         current_month_revenue=current_month_revenue,
         last_month_revenue=last_month_revenue,
         revenue_growth=revenue_growth,
         revenue_breakdown=revenue_breakdown,
-        recent_transactions=recent_txns
+        recent_transactions=recent_txns,
+        total_members=total_members,
+        active_today=active_today,
+        expiring_soon=expiring_soon,
+        revenue=current_month_revenue,
+        activities=activities
     )
 
 @app.route("/members")
@@ -223,8 +272,13 @@ def add_member():
         join_date = get_today_date()
         
         members_sheet.append_row([
-            member_id, request.form["name"], request.form["phone"], 
-            "-", fees, join_date, request.form["end_date"]
+            member_id, 
+            request.form["name"], 
+            request.form["phone"], 
+            request.form.get("plan", "Standard"),
+            fees, 
+            join_date, 
+            request.form["end_date"]
         ])
         
         payments_sheet.append_row([
