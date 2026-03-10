@@ -162,7 +162,7 @@ def register_before_request_handlers(app: Flask) -> None:
 def register_blueprints(app: Flask) -> None:
     """Register blueprints with the application."""
     try:
-        from gym.routes import api_bp, health_bp
+        from routes import api_bp, health_bp
         app.register_blueprint(health_bp)
         app.register_blueprint(api_bp, url_prefix='/api')
         logger.info("Blueprints registered successfully")
