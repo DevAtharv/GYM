@@ -1,9 +1,0 @@
-Flask
-gunicorn
-gspread
-oauth2client
-qrcode[pil]
-pytz
-flask-cors
-flask-limiter
-python-dotenv
