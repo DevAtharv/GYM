@@ -143,7 +143,9 @@
                                     </td>
                                     <td>{{ member.plan }}</td>
                                     <td>
-                                        <span class="badge badge-{{ member.status }}">{{ member.status.title() }}</span>
+                                        <span class="badge badge-{{ 'active' if member.end_date >= now().strftime('%Y-%m-%d') else 'expired' }}">
+    {{ 'Active' if member.end_date >= now().strftime('%Y-%m-%d') else 'Expired' }}
+</span>
                                     </td>
                                     <td>{{ member.join_date }}</td>
                                 </tr>
