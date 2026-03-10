@@ -57,35 +57,24 @@ logger.addHandler(console_handler)
 def create_app(config_name: Optional[str] = None) -> Flask:
     """
     Application factory function to create and configure the Flask app.
-
-    Args:
-        config_name: Optional configuration name (development, testing, production)
-
-    Returns:
-        Flask: Configured Flask application instance
-
-    Raises:
-        ValueError: If configuration is invalid
     """
     try:
         app = Flask(__name__)
 
-        # ── Secret key (required for sessions) ──────────────────────────────
+        # Secret key
         app.secret_key = os.getenv('FLASK_SECRET', 'change-me-in-production')
 
-        # ── Session / security config ────────────────────────────────────────
-        # SESSION_COOKIE_SECURE should only be True when running over HTTPS.
-        # On Render (HTTPS) set SECURE_COOKIES=true in env vars; locally leave unset.
+        # Session / security config
         app.config['SESSION_COOKIE_SECURE'] = os.getenv('SECURE_COOKIES', 'false').lower() == 'true'
         app.config['SESSION_COOKIE_HTTPONLY'] = True
         app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
         app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
-        # ── CORS ─────────────────────────────────────────────────────────────
+        # CORS
         cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
         CORS(app, resources={r"/api/*": {"origins": cors_origins}})
 
-        # ── Rate limiting ────────────────────────────────────────────────────
+        # Rate limiting
         Limiter(
             app=app,
             key_func=get_remote_address,
@@ -93,7 +82,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
             storage_uri=os.getenv('REDIS_URL', 'memory://')
         )
 
-        # ── Handlers & blueprints ────────────────────────────────────────────
+        # Handlers & blueprints
         register_error_handlers(app)
         register_before_request_handlers(app)
         register_blueprints(app)
@@ -153,21 +142,13 @@ def register_before_request_handlers(app: Flask) -> None:
 
     @app.before_request
     def log_request_info() -> None:
-        """Log incoming request information."""
-        # FIX: request.start_time does not exist — use time module instead
         import time
         g.start_time = time.time()
         logger.debug(f"{request.method} {request.path} from {request.remote_addr}")
 
     @app.before_request
     def validate_request_headers() -> Optional[tuple]:
-        """
-        Validate Content-Type for JSON API routes only.
-
-        FIX: The original code blocked ALL POST requests that weren't JSON,
-        which broke every HTML form (login, add member, renew, check-in).
-        Now we only enforce JSON Content-Type for /api/* routes.
-        """
+        """Only enforce JSON Content-Type on /api/* routes, not HTML forms."""
         if request.path.startswith('/api/') and request.method in ['POST', 'PUT']:
             if not request.is_json:
                 logger.warning(f"Invalid Content-Type from {request.remote_addr}")
@@ -211,8 +192,6 @@ def token_required(f: Callable) -> Callable:
 
         try:
             valid_token = os.getenv('API_TOKEN')
-            # FIX: safe_str_cmp was removed in Werkzeug 2.1+
-            # Use hmac.compare_digest instead (timing-safe, built into Python stdlib)
             if not valid_token or not hmac.compare_digest(token, valid_token):
                 logger.warning(f"Invalid token attempt from {request.remote_addr}")
                 return jsonify({'error': 'Invalid token'}), 401
@@ -227,12 +206,13 @@ def token_required(f: Callable) -> Callable:
     return decorated
 
 
+# Module-level app instance for gunicorn
+app = create_app()
+
 if __name__ == '__main__':
     try:
-        app = create_app()
         debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
         port = int(os.getenv('PORT', 5000))
-
         logger.info(f"Starting Gym application on port {port}")
         app.run(
             host='0.0.0.0',
